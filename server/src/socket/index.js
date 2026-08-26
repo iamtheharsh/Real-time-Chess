@@ -43,9 +43,19 @@ const initSocket = (httpServer) => {
 
         if (!game) return socket.emit("error", { message: "Game not found" });
 
-        // Verify this user is actually a player in this game
-        const isWhite = game.whitePlayer?._id.toString() === socket.userId;
-        const isBlack = game.blackPlayer?._id.toString() === socket.userId;
+        // Verify this user is a player in this game, or auto-assign as Black if seat is open
+        let isWhite = game.whitePlayer?._id.toString() === socket.userId;
+        let isBlack = game.blackPlayer?._id.toString() === socket.userId;
+
+        if (!isWhite && !isBlack && game.status === "WAITING" && !game.blackPlayer) {
+          game.blackPlayer = socket.userId;
+          game.status = "ACTIVE";
+          game.lastMoveAt = new Date();
+          await game.save();
+          await game.populate("blackPlayer", "username _id");
+          isBlack = true;
+        }
+
         if (!isWhite && !isBlack) {
           return socket.emit("error", { message: "You are not a player in this game" });
         }
@@ -93,9 +103,12 @@ const initSocket = (httpServer) => {
           resultReason: game.resultReason,
         });
 
-        // Notify the opponent that the other player has (re)joined
+        // Notify the opponent that the other player has (re)joined with full metadata
         socket.to(gameId).emit("opponent-joined", {
           username: isWhite ? game.whitePlayer?.username : game.blackPlayer?.username,
+          status: game.status,
+          whitePlayer: game.whitePlayer?.username,
+          blackPlayer: game.blackPlayer?.username,
         });
       } catch (err) {
         console.error("join-game error:", err.message);

@@ -119,12 +119,13 @@ export default function ReplayPage() {
 
           <div className="w-[400px] sm:w-[480px]">
             <Chessboard
-              position={getPositionFen()}
-              boardWidth={typeof window !== 'undefined' ? Math.min(480, window.innerWidth - 32) : 480}
-              arePiecesDraggable={false} // Read-only replay
-              customBoardStyle={{ borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
-              customDarkSquareStyle={{ backgroundColor: '#4a6741' }}
-              customLightSquareStyle={{ backgroundColor: '#f0d9b5' }}
+              options={{
+                position: getPositionFen(),
+                allowDragging: false,
+                boardStyle: { borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', width: '100%', maxWidth: '480px' },
+                darkSquareStyle: { backgroundColor: '#4a6741' },
+                lightSquareStyle: { backgroundColor: '#f0d9b5' },
+              }}
             />
           </div>
 

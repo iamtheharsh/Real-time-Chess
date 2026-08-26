@@ -39,6 +39,7 @@ export default function GamePage() {
   const [opponentLeft, setOpponentLeft] = useState(false)
   const [moveError, setMoveError] = useState('')
   const [lastMove, setLastMove] = useState(null)      // { from, to } for highlighting
+  const [selectedSquare, setSelectedSquare] = useState(null) // square selected for click-to-move
   const [reconnecting, setReconnecting] = useState(false)
 
   // ── Derive current turn from FEN ──
@@ -107,6 +108,7 @@ export default function GamePage() {
       setFen(data.fen)
       setMoves((prev) => [...prev, data.move])
       setLastMove({ from: data.move.from, to: data.move.to })
+      setSelectedSquare(null)
       // Re-sync clocks from server truth
       setWhiteTime(data.whiteTime)
       setBlackTime(data.blackTime)
@@ -123,11 +125,15 @@ export default function GamePage() {
     socket.on('draw-declined', () => setDrawOffered(false))
 
     // Opponent joined the waiting room
-    socket.on('opponent-joined', () => setStatus('ACTIVE'))
+    socket.on('opponent-joined', (data) => {
+      setStatus(data?.status || 'ACTIVE')
+      setOpponentLeft(false)
+      if (data?.whitePlayer) setWhitePlayer(data.whitePlayer)
+      if (data?.blackPlayer) setBlackPlayer(data.blackPlayer)
+    })
 
     // Opponent disconnected temporarily
     socket.on('opponent-disconnected', () => setOpponentLeft(true))
-    socket.on('opponent-joined', () => setOpponentLeft(false))
 
     // Move was rejected by server
     socket.on('move-error', (data) => {
@@ -155,21 +161,92 @@ export default function GamePage() {
   }, [socket, gameId])
 
   // ── onPieceDrop: called by react-chessboard when user drags a piece ──
-  // We just emit to the server — chess.js on the server decides if it's legal
-  const onPieceDrop = useCallback((from, to, piece) => {
+  const onPieceDrop = useCallback((args) => {
+    let from, to, pieceObj
+    if (args && typeof args === 'object' && 'sourceSquare' in args) {
+      from = args.sourceSquare
+      to = args.targetSquare
+      pieceObj = args.piece
+    } else {
+      from = arguments[0]
+      to = arguments[1]
+      pieceObj = arguments[2]
+    }
+
+    if (!to || from === to) return false
     if (!isMyTurn || gameOver || status !== 'ACTIVE') return false
+
     // Detect pawn promotion
+    const pieceType = pieceObj?.pieceType || (typeof pieceObj === 'string' ? pieceObj : '')
+    const isPawn = pieceType.toLowerCase().includes('p')
     const isPromotion =
-      piece[1] === 'P' &&
-      ((piece[0] === 'w' && to[1] === '8') || (piece[0] === 'b' && to[1] === '1'))
+      isPawn &&
+      ((myColor === 'w' && to[1] === '8') || (myColor === 'b' && to[1] === '1'))
+
     socket.emit('make-move', {
       gameId,
       from,
       to,
       promotion: isPromotion ? 'q' : undefined,
     })
-    return true // return true to let react-chessboard show the optimistic move
-  }, [isMyTurn, gameOver, status, socket, gameId])
+    setSelectedSquare(null)
+    return true
+  }, [isMyTurn, gameOver, status, myColor, socket, gameId])
+
+  // ── onSquareClick: click-to-move support ──
+  const onSquareClick = useCallback((args) => {
+    if (!isMyTurn || gameOver || status !== 'ACTIVE') {
+      setSelectedSquare(null)
+      return
+    }
+
+    const clickedSquare = args?.square || args
+    const piece = args?.piece
+    const pieceType = piece?.pieceType || (typeof piece === 'string' ? piece : '')
+    const pieceColor = pieceType?.[0]
+
+    // 1. If no square is currently selected
+    if (!selectedSquare) {
+      if (pieceColor === myColor) {
+        setSelectedSquare(clickedSquare)
+      }
+      return
+    }
+
+    // 2. If clicking the exact same square -> deselect
+    if (selectedSquare === clickedSquare) {
+      setSelectedSquare(null)
+      return
+    }
+
+    // 3. If clicking another piece of the player's own color -> switch selection
+    if (pieceColor === myColor) {
+      setSelectedSquare(clickedSquare)
+      return
+    }
+
+    // 4. Otherwise -> attempt move from selectedSquare to clickedSquare
+    const isPromotion =
+      (myColor === 'w' && clickedSquare[1] === '8') ||
+      (myColor === 'b' && clickedSquare[1] === '1')
+
+    socket.emit('make-move', {
+      gameId,
+      from: selectedSquare,
+      to: clickedSquare,
+      promotion: isPromotion ? 'q' : undefined,
+    })
+
+    setSelectedSquare(null)
+  }, [selectedSquare, isMyTurn, gameOver, status, myColor, socket, gameId])
+
+  const canDragPiece = useCallback((args) => {
+    if (!isMyTurn || gameOver || status !== 'ACTIVE') return false
+    const piece = args?.piece
+    const pieceType = piece?.pieceType || (typeof piece === 'string' ? piece : '')
+    const pieceColor = pieceType?.[0]
+    return pieceColor === myColor
+  }, [isMyTurn, gameOver, status, myColor])
 
   const handleResign = () => {
     if (window.confirm('Are you sure you want to resign?')) {
@@ -181,13 +258,20 @@ export default function GamePage() {
   const handleAcceptDraw = () => { socket.emit('accept-draw', { gameId }); setDrawOffered(false) }
   const handleDeclineDraw = () => { socket.emit('decline-draw', { gameId }); setDrawOffered(false) }
 
-  // Custom square styles for last move highlight
-  const customSquareStyles = lastMove
-    ? {
-        [lastMove.from]: { backgroundColor: 'rgba(255, 255, 100, 0.3)' },
-        [lastMove.to]: { backgroundColor: 'rgba(255, 255, 100, 0.4)' },
-      }
-    : {}
+  // Custom square styles for last move highlight and selected square
+  const customSquareStyles = {
+    ...(lastMove
+      ? {
+          [lastMove.from]: { backgroundColor: 'rgba(255, 255, 100, 0.35)' },
+          [lastMove.to]: { backgroundColor: 'rgba(255, 255, 100, 0.45)' },
+        }
+      : {}),
+    ...(selectedSquare
+      ? {
+          [selectedSquare]: { backgroundColor: 'rgba(99, 102, 241, 0.65)' },
+        }
+      : {}),
+  }
 
   // ── Game over result label ──
   const getResultLabel = () => {
@@ -282,16 +366,19 @@ export default function GamePage() {
               {/* Chess Board */}
               <div className="relative">
                 <Chessboard
-                  id="main-board"
-                  position={fen}
-                  onPieceDrop={onPieceDrop}
-                  boardOrientation={myColor === 'b' ? 'black' : 'white'}
-                  boardWidth={Math.min(480, typeof window !== 'undefined' ? window.innerWidth - 48 : 480)}
-                  customSquareStyles={customSquareStyles}
-                  customBoardStyle={{ borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
-                  customDarkSquareStyle={{ backgroundColor: '#4a6741' }}
-                  customLightSquareStyle={{ backgroundColor: '#f0d9b5' }}
-                  arePiecesDraggable={isMyTurn && status === 'ACTIVE' && !gameOver}
+                  options={{
+                    id: "main-board",
+                    position: fen,
+                    onPieceDrop: onPieceDrop,
+                    onSquareClick: onSquareClick,
+                    canDragPiece: canDragPiece,
+                    allowDragging: isMyTurn && status === 'ACTIVE' && !gameOver,
+                    boardOrientation: myColor === 'b' ? 'black' : 'white',
+                    squareStyles: customSquareStyles,
+                    boardStyle: { borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', width: '100%', maxWidth: '480px' },
+                    darkSquareStyle: { backgroundColor: '#4a6741' },
+                    lightSquareStyle: { backgroundColor: '#f0d9b5' },
+                  }}
                 />
 
                 {/* Move error toast */}
