@@ -2,6 +2,10 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { createGame, joinGame, getGame, getHistory } from '../services/gameService'
+import { 
+  Plus, LogIn, LogOut, Clock, ArrowRight, ChevronRight, 
+  Gamepad2, Trophy, Handshake, LineChart, ChevronDown
+} from 'lucide-react'
 
 export default function DashboardPage() {
   const { user, logout } = useAuth()
@@ -123,21 +127,11 @@ export default function DashboardPage() {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '—'
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
+    return new Date(dateStr).toLocaleDateString('en-GB', {
       day: 'numeric',
+      month: 'short',
+      year: 'numeric'
     })
-  }
-
-  const getResultLabel = (game) => {
-    if (game.result === 'draw') {
-      return <span className="text-xs font-semibold text-[#A1A1AA]">DRAW</span>
-    }
-    const won = game.winner?._id === user?.id || game.winner?.username === user?.username
-    if (won) {
-      return <span className="text-xs font-semibold text-[#6EE7B7]">WIN</span>
-    }
-    return <span className="text-xs font-semibold text-[#F87171]">LOSS</span>
   }
 
   const getOpponent = (game) => {
@@ -145,215 +139,241 @@ export default function DashboardPage() {
     return isWhite ? game.blackPlayer?.username : game.whitePlayer?.username
   }
 
-  return (
-    <div className="relative min-h-screen bg-[#0A0A0B] text-[#F5F5F7] flex flex-col font-sans selection:bg-[#6EE7B7]/20 selection:text-[#6EE7B7]">
-      
-      {/* Background Atmosphere */}
-      <div 
-        className="fixed inset-0 bg-cover bg-center bg-no-repeat pointer-events-none opacity-25"
-        style={{ backgroundImage: 'url(/dashboard-bg.jpg)' }}
-      />
-      <div className="fixed inset-0 bg-gradient-to-b from-[#0A0A0B]/90 via-[#0A0A0B]/95 to-[#0A0A0B] pointer-events-none" />
+  // Helper for Result Text & Dot
+  const renderResult = (game) => {
+    if (game.result === 'draw') {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-[#A1A1AA]">DRAW</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#A1A1AA]"></span>
+        </div>
+      )
+    }
+    const won = game.winner?._id === user?.id || game.winner?.username === user?.username
+    if (won) {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-[#6EE7B7]">WIN</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#6EE7B7]"></span>
+        </div>
+      )
+    }
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold text-[#F87171]">LOSS</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-[#F87171]"></span>
+      </div>
+    )
+  }
 
-      {/* ── Top Navbar (Compact 56px) ── */}
-      <header className="border-b border-[#27272A] bg-[#0A0A0B]/90 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-[1180px] mx-auto px-5 sm:px-6 h-14 flex items-center justify-between">
+  // Circular Progress for Win Rate
+  const CircularProgress = ({ percentage }) => {
+    const radius = 24
+    const circumference = 2 * Math.PI * radius
+    const strokeDashoffset = circumference - (percentage / 100) * circumference
+
+    return (
+      <div className="relative flex items-center justify-center">
+        <svg className="w-16 h-16 transform -rotate-90">
+          <circle
+            className="text-[#1D1D20]"
+            strokeWidth="4"
+            stroke="currentColor"
+            fill="transparent"
+            r={radius}
+            cx="32"
+            cy="32"
+          />
+          <circle
+            className="text-[#6EE7B7] transition-all duration-1000 ease-out"
+            strokeWidth="4"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            stroke="currentColor"
+            fill="transparent"
+            r={radius}
+            cx="32"
+            cy="32"
+          />
+        </svg>
+        <span className="absolute text-[11px] font-bold text-[#6EE7B7]">
+          {percentage}%
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#09090B] text-[#F5F5F7] flex flex-col font-sans selection:bg-[#6EE7B7]/20 selection:text-[#6EE7B7]">
+      
+      {/* ── Top Navbar ── */}
+      <header className="border-b border-[#1D1D20] bg-[#09090B]">
+        <div className="max-w-[1240px] mx-auto px-6 sm:px-8 h-[72px] flex items-center justify-between">
           
           {/* Brand */}
-          <div className="flex items-center gap-2">
-            <span className="text-base text-[#F5F5F7]">♟</span>
-            <span className="font-bold text-xs tracking-[0.2em] text-[#F5F5F7] uppercase">CHECKMATE</span>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl text-[#F5F5F7]">♟</span>
+            <span className="font-bold text-sm tracking-[0.2em] text-[#F5F5F7] uppercase mt-0.5">CHECKMATE</span>
           </div>
 
           {/* Nav Center */}
-          <nav className="flex items-center gap-6 text-xs sm:text-sm">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="text-[#F5F5F7] font-medium transition"
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => navigate('/history')}
-              className="text-[#A1A1AA] hover:text-[#F5F5F7] font-medium transition"
-            >
-              History
-            </button>
+          <nav className="hidden sm:flex items-center gap-8 h-full">
+            <div className="relative h-full flex items-center">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="text-[#F5F5F7] font-medium text-sm transition"
+              >
+                Dashboard
+              </button>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#6EE7B7]" />
+            </div>
+            <div className="h-full flex items-center">
+              <button
+                onClick={() => navigate('/history')}
+                className="text-[#A1A1AA] hover:text-[#F5F5F7] font-medium text-sm transition"
+              >
+                History
+              </button>
+            </div>
           </nav>
 
           {/* Right Profile & Logout */}
-          <div className="flex items-center gap-3">
-            <div className="text-xs text-[#E4E4E7] bg-[#161618] border border-[#27272A] rounded-md px-2.5 py-1 font-mono">
-              {user?.username}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2.5 bg-[#111113] border border-[#1D1D20] rounded-full py-1.5 pl-1.5 pr-3 cursor-pointer hover:bg-[#18181B] transition">
+              <div className="w-6 h-6 rounded-full bg-[#183327] text-[#6EE7B7] flex items-center justify-center text-[10px] font-bold">
+                {user?.username?.substring(0, 2).toUpperCase() || 'US'}
+              </div>
+              <span className="text-xs font-mono text-[#A1A1AA]">{user?.username}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-[#71717A]" />
             </div>
             <button
               onClick={handleLogout}
-              className="text-xs text-[#A1A1AA] hover:text-[#F5F5F7] transition px-2 py-1 rounded hover:bg-[#1B1B1E]"
+              className="p-2 border border-[#1D1D20] text-[#71717A] rounded-lg hover:text-[#F5F5F7] hover:bg-[#18181B] transition"
             >
-              Logout
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
 
         </div>
       </header>
 
-      {/* ── Main Content (Tight 20px - 28px vertical rhythm) ── */}
-      <main className="relative z-10 flex-1 max-w-[1180px] mx-auto w-full px-5 sm:px-6 pt-5 pb-10 space-y-6">
+      {/* ── Main Content Container ── */}
+      <main className="flex-1 max-w-[1240px] mx-auto w-full px-6 sm:px-8 py-8 space-y-6">
         
-        {/* 1. Welcome & Actions Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* 1. Welcome Card */}
+        <div className="bg-[#111113] border border-[#1D1D20] rounded-[20px] p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-sm">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F5F5F7]">
+            <h1 className="text-3xl font-semibold tracking-tight text-[#F5F5F7] mb-2">
               Welcome back, {user?.username}
             </h1>
-            <p className="text-[#A1A1AA] text-xs sm:text-sm mt-0.5 font-normal">
+            <p className="text-[#A1A1AA] text-sm">
               Ready for another game?
             </p>
           </div>
 
-          {/* Actions Baseline Aligned */}
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-4 flex-shrink-0">
             <button
               onClick={handleCreateGame}
               disabled={creating}
-              className="h-9.5 bg-[#F5F5F7] hover:bg-white text-[#0A0A0B] font-semibold text-xs px-4.5 rounded-lg transition duration-150 shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-60"
+              className="h-[42px] bg-[#F5F5F7] hover:bg-white text-[#09090B] font-semibold text-sm px-5 rounded-xl transition duration-150 flex items-center justify-center gap-2.5 active:scale-[0.98] disabled:opacity-60 shadow-sm"
             >
               {creating ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-[#0A0A0B] border-t-transparent rounded-full animate-spin" />
-                  <span>Creating...</span>
-                </>
+                <span className="w-4 h-4 border-2 border-[#09090B] border-t-transparent rounded-full animate-spin" />
               ) : (
-                <span>Create Game</span>
+                <Plus className="w-4 h-4" />
               )}
+              <span>Create Game</span>
             </button>
 
             <button
               onClick={() => setModal('join')}
-              className="h-9.5 bg-[#161618] hover:bg-[#202024] text-[#F5F5F7] border border-[#27272A] font-semibold text-xs px-4.5 rounded-lg transition duration-150 cursor-pointer active:scale-[0.99]"
+              className="h-[42px] bg-transparent hover:bg-[#18181B] text-[#F5F5F7] border border-[#27272A] font-semibold text-sm px-5 rounded-xl transition duration-150 flex items-center justify-center gap-2.5 active:scale-[0.98]"
             >
-              Join Game
+              <LogIn className="w-4 h-4 text-[#A1A1AA]" />
+              <span>Join Game</span>
             </button>
           </div>
         </div>
 
-        {/* 2. Performance Stats Section (Directly Below Welcome Header) */}
-        <div className="space-y-2.5">
-          <div className="text-[11px] font-semibold text-[#A1A1AA] uppercase tracking-wider">
-            Performance
-          </div>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            
-            {/* Games Played */}
-            <div className="bg-[#141416] border border-[#27272A] rounded-xl p-4 flex flex-col justify-between shadow-md shadow-black/20">
-              <div className="text-[11px] font-semibold text-[#A1A1AA] uppercase tracking-wider">Games Played</div>
-              <div className="text-2xl font-bold text-[#F5F5F7] my-1.5">{stats.gamesPlayed}</div>
-              <div className="text-xs text-[#A1A1AA]">Total matches</div>
+        {/* 2. Recent Games Card */}
+        <div className="bg-[#111113] border border-[#1D1D20] rounded-[20px] overflow-hidden shadow-sm flex flex-col">
+          {/* Card Header */}
+          <div className="px-8 py-5 flex items-center justify-between border-b border-[#1D1D20]">
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-[#6EE7B7]" />
+              <h2 className="text-lg font-semibold text-[#F5F5F7]">Recent Games</h2>
             </div>
-
-            {/* Wins */}
-            <div className="bg-[#141416] border border-[#27272A] rounded-xl p-4 flex flex-col justify-between shadow-md shadow-black/20">
-              <div className="text-[11px] font-semibold text-[#A1A1AA] uppercase tracking-wider">Wins</div>
-              <div className="text-2xl font-bold text-[#F5F5F7] my-1.5">{stats.wins}</div>
-              <div className="text-xs text-[#A1A1AA]">You won</div>
-            </div>
-
-            {/* Draws */}
-            <div className="bg-[#141416] border border-[#27272A] rounded-xl p-4 flex flex-col justify-between shadow-md shadow-black/20">
-              <div className="text-[11px] font-semibold text-[#A1A1AA] uppercase tracking-wider">Draws</div>
-              <div className="text-2xl font-bold text-[#F5F5F7] my-1.5">{stats.draws}</div>
-              <div className="text-xs text-[#A1A1AA]">Games drawn</div>
-            </div>
-
-            {/* Win Rate */}
-            <div className="bg-[#141416] border border-[#27272A] rounded-xl p-4 flex flex-col justify-between shadow-md shadow-black/20">
-              <div className="flex items-center justify-between">
-                <div className="text-[11px] font-semibold text-[#A1A1AA] uppercase tracking-wider">Win Rate</div>
-                <span className="w-1.5 h-1.5 rounded-full bg-[#6EE7B7]" />
-              </div>
-              <div className="text-2xl font-bold text-[#F5F5F7] my-1.5">{stats.winRate}%</div>
-              <div className="text-xs text-[#A1A1AA]">
-                {stats.gamesPlayed > 0 ? `${stats.wins} of ${stats.gamesPlayed} won` : '0 of 0 won'}
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* 3. Recent Games Section (Below Stats) */}
-        <div className="space-y-2.5 pt-1">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[11px] font-semibold text-[#A1A1AA] uppercase tracking-wider">Recent Games</h2>
             <button
               onClick={() => navigate('/history')}
-              className="text-xs font-medium text-[#A1A1AA] hover:text-[#F5F5F7] transition flex items-center gap-1 cursor-pointer"
+              className="text-sm font-medium text-[#6EE7B7] hover:text-[#5eead4] transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>View All History</span>
-              <span>→</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
 
-          {historyLoading ? (
-            <div className="bg-[#141416] border border-[#27272A] rounded-xl p-10 flex items-center justify-center shadow-md">
-              <div className="w-5 h-5 border-2 border-[#6EE7B7] border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : history.length === 0 ? (
-            <div className="bg-[#141416] border border-[#27272A] rounded-xl p-8 text-center shadow-md">
-              <p className="text-[#E4E4E7] text-sm font-medium">No games recorded yet</p>
-              <p className="text-[#A1A1AA] text-xs mt-1">Create a new game or join with an ID to begin your match history.</p>
-            </div>
-          ) : (
-            <div className="bg-[#141416] border border-[#27272A] rounded-xl overflow-hidden shadow-lg shadow-black/30">
+          {/* Table Content */}
+          <div className="flex-1 min-h-[300px]">
+            {historyLoading ? (
+              <div className="h-[300px] flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-[#6EE7B7] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : history.length === 0 ? (
+              <div className="h-[300px] flex flex-col items-center justify-center text-center">
+                <p className="text-[#E4E4E7] text-base font-medium mb-1">No games recorded yet</p>
+                <p className="text-[#A1A1AA] text-sm">Create a new game or join with an ID to begin.</p>
+              </div>
+            ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
+                <table className="w-full text-left text-sm whitespace-nowrap">
                   <thead>
-                    <tr className="border-b border-[#27272A] text-[11px] font-semibold text-[#A1A1AA] uppercase tracking-wider bg-[#101012]">
-                      <th className="px-5 py-3">Opponent</th>
-                      <th className="px-5 py-3">Result</th>
-                      <th className="px-5 py-3">Reason</th>
-                      <th className="px-5 py-3">Date</th>
-                      <th className="px-5 py-3 text-right"></th>
+                    <tr className="text-[13px] font-medium text-[#A1A1AA]">
+                      <th className="px-8 py-4 font-normal">Opponent</th>
+                      <th className="px-8 py-4 font-normal">Result</th>
+                      <th className="px-8 py-4 font-normal">Reason</th>
+                      <th className="px-8 py-4 font-normal">Date</th>
+                      <th className="px-8 py-4 font-normal text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#27272A]">
-                    {history.map((game) => {
+                  <tbody>
+                    {history.map((game, idx) => {
                       const opponentName = getOpponent(game) || 'Unknown'
                       const initial = opponentName.charAt(0).toUpperCase()
                       return (
                         <tr
                           key={game._id}
                           onClick={() => navigate(`/history/${game.gameId}`)}
-                          className="hover:bg-[#1E1E22] transition duration-150 cursor-pointer group"
+                          className="hover:bg-[#18181B] transition duration-150 cursor-pointer group border-t border-[#1D1D20]"
                         >
-                          {/* Opponent with initial circle */}
-                          <td className="px-5 py-3.5 text-[#F5F5F7] font-medium">
-                            <div className="flex items-center gap-3">
-                              <div className="w-6 h-6 rounded-full bg-[#202024] border border-[#303036] flex items-center justify-center text-[11px] font-semibold text-[#D4D4D8] group-hover:text-[#F5F5F7] group-hover:border-[#3F3F46] transition">
+                          {/* Opponent */}
+                          <td className="px-8 py-5 text-[#F5F5F7] font-semibold">
+                            <div className="flex items-center gap-4">
+                              <div className="w-8 h-8 rounded-full bg-[#27272A] flex items-center justify-center text-[13px] font-bold text-[#F5F5F7]">
                                 {initial}
                               </div>
-                              <span className="truncate">{opponentName}</span>
+                              <span>{opponentName}</span>
                             </div>
                           </td>
 
                           {/* Result */}
-                          <td className="px-5 py-3.5">
-                            {getResultLabel(game)}
+                          <td className="px-8 py-5">
+                            {renderResult(game)}
                           </td>
 
                           {/* Reason */}
-                          <td className="px-5 py-3.5 text-[#A1A1AA] text-xs capitalize font-normal">
+                          <td className="px-8 py-5 text-[#A1A1AA] capitalize">
                             {game.resultReason?.replace(/_/g, ' ') || 'Checkmate'}
                           </td>
 
                           {/* Date */}
-                          <td className="px-5 py-3.5 text-[#A1A1AA] text-xs font-normal">
+                          <td className="px-8 py-5 text-[#A1A1AA]">
                             {formatDate(game.completedAt)}
                           </td>
 
-                          {/* Action Chevron */}
-                          <td className="px-5 py-3.5 text-right text-[#71717A] group-hover:text-[#F5F5F7] transition font-mono">
-                            ›
+                          {/* Action */}
+                          <td className="px-8 py-5 text-right text-[#A1A1AA] group-hover:text-[#F5F5F7] transition">
+                            <ChevronRight className="w-4 h-4 ml-auto" />
                           </td>
                         </tr>
                       )
@@ -361,8 +381,66 @@ export default function DashboardPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* 3. Statistics Row (4 Cards) */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          
+          {/* Games Played */}
+          <div className="bg-[#111113] border border-[#1D1D20] rounded-[20px] p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-[10px] bg-[#183327] flex items-center justify-center text-[#6EE7B7]">
+                <Gamepad2 className="w-5 h-5" />
+              </div>
+              <span className="text-sm font-medium text-[#A1A1AA]">Games Played</span>
             </div>
-          )}
+            <div className="text-3xl font-semibold text-[#F5F5F7] mb-1">{stats.gamesPlayed}</div>
+            <div className="text-xs text-[#A1A1AA]">Total games logged</div>
+          </div>
+
+          {/* Wins */}
+          <div className="bg-[#111113] border border-[#1D1D20] rounded-[20px] p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-[10px] bg-[#183327] flex items-center justify-center text-[#6EE7B7]">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <span className="text-sm font-medium text-[#A1A1AA]">Wins</span>
+            </div>
+            <div className="text-3xl font-semibold text-[#F5F5F7] mb-1">{stats.wins}</div>
+            <div className="text-xs text-[#A1A1AA]">You won</div>
+          </div>
+
+          {/* Draws */}
+          <div className="bg-[#111113] border border-[#1D1D20] rounded-[20px] p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-[10px] bg-[#27272A] flex items-center justify-center text-[#A1A1AA]">
+                <Handshake className="w-5 h-5" />
+              </div>
+              <span className="text-sm font-medium text-[#A1A1AA]">Draws</span>
+            </div>
+            <div className="text-3xl font-semibold text-[#F5F5F7] mb-1">{stats.draws}</div>
+            <div className="text-xs text-[#A1A1AA]">Games drawn</div>
+          </div>
+
+          {/* Win Rate */}
+          <div className="bg-[#111113] border border-[#1D1D20] rounded-[20px] p-6 shadow-sm flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-[10px] bg-[#183327] flex items-center justify-center text-[#6EE7B7]">
+                  <LineChart className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-medium text-[#A1A1AA]">Win Rate</span>
+              </div>
+              <div className="text-3xl font-semibold text-[#F5F5F7] mb-1">{stats.winRate}%</div>
+              <div className="text-xs text-[#A1A1AA]">
+                {stats.gamesPlayed > 0 ? `${stats.wins} of ${stats.gamesPlayed} games won` : '0 of 0 games won'}
+              </div>
+            </div>
+            <CircularProgress percentage={stats.winRate} />
+          </div>
+
         </div>
 
       </main>
@@ -374,60 +452,53 @@ export default function DashboardPage() {
           onClick={handleCloseModal}
         >
           <div
-            className="bg-[#141416] border border-[#27272A] rounded-xl p-5 sm:p-6 w-full max-w-sm shadow-2xl space-y-4"
+            className="bg-[#111113] border border-[#27272A] rounded-2xl p-6 sm:p-7 w-full max-w-sm shadow-2xl space-y-5"
             onClick={(e) => e.stopPropagation()}
           >
             {waitingStatus === 'active' ? (
-              <div className="text-center py-4 space-y-1.5">
-                <div className="w-2 h-2 bg-[#6EE7B7] rounded-full mx-auto mb-1 animate-ping" />
-                <h3 className="text-sm font-semibold text-[#F5F5F7]">Opponent Joined</h3>
+              <div className="text-center py-5 space-y-2">
+                <div className="w-2.5 h-2.5 bg-[#6EE7B7] rounded-full mx-auto mb-2 animate-ping" />
+                <h3 className="text-base font-semibold text-[#F5F5F7]">Opponent Joined</h3>
                 <p className="text-xs text-[#A1A1AA]">Starting match room...</p>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-[#F5F5F7]">Create Game</h3>
-                    <p className="text-[11px] text-[#A1A1AA]">10 + 10 Blitz • 10m + 10s increment</p>
+                    <h3 className="text-base font-semibold text-[#F5F5F7]">Create Game</h3>
+                    <p className="text-[11px] text-[#A1A1AA] mt-1">10 + 10 Blitz • 10m + 10s increment</p>
                   </div>
-                  <button
-                    onClick={handleCloseModal}
-                    className="text-[#71717A] hover:text-[#F5F5F7] text-xs"
-                  >
-                    ✕
-                  </button>
+                  <button onClick={handleCloseModal} className="text-[#71717A] hover:text-[#F5F5F7]">✕</button>
                 </div>
 
-                {/* Game ID Display */}
-                <div className="bg-[#0A0A0B] border border-[#27272A] rounded-lg p-3 flex items-center justify-between">
+                <div className="bg-[#09090B] border border-[#27272A] rounded-xl p-3.5 flex items-center justify-between">
                   <div>
-                    <div className="text-[10px] text-[#A1A1AA] uppercase tracking-wider font-semibold">Game ID</div>
-                    <div className="text-lg font-mono font-bold tracking-wider text-[#F5F5F7] mt-0.5">{createdGameId}</div>
+                    <div className="text-[10px] text-[#71717A] uppercase tracking-wider font-bold">Game ID</div>
+                    <div className="text-xl font-mono font-bold tracking-wider text-[#F5F5F7] mt-0.5">{createdGameId}</div>
                   </div>
                   <button
                     onClick={handleCopyId}
-                    className="bg-[#1E1E22] hover:bg-[#27272A] text-xs text-[#F5F5F7] border border-[#27272A] rounded-md px-2.5 py-1 transition font-medium cursor-pointer"
+                    className="bg-[#18181B] hover:bg-[#27272A] text-xs text-[#F5F5F7] border border-[#27272A] rounded-lg px-3 py-1.5 transition font-medium cursor-pointer"
                   >
                     {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>
 
-                {/* Live Status */}
                 <div className="flex items-center gap-2 text-xs text-[#A1A1AA]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#6EE7B7] animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-[#6EE7B7] animate-pulse" />
                   <span>Waiting for opponent to connect...</span>
                 </div>
 
-                <div className="flex gap-2 pt-1">
+                <div className="flex gap-2.5 pt-1">
                   <button
                     onClick={() => navigate(`/game/${createdGameId}`)}
-                    className="flex-1 h-9 bg-[#F5F5F7] hover:bg-white text-[#0A0A0B] font-semibold rounded-lg text-xs transition cursor-pointer"
+                    className="flex-1 h-10 bg-[#F5F5F7] hover:bg-white text-[#09090B] font-semibold rounded-xl text-xs transition cursor-pointer"
                   >
                     Enter Room
                   </button>
                   <button
                     onClick={handleCloseModal}
-                    className="h-9 border border-[#27272A] hover:bg-[#1E1E22] text-[#A1A1AA] hover:text-[#F5F5F7] font-medium rounded-lg px-3.5 text-xs transition cursor-pointer"
+                    className="h-10 border border-[#27272A] hover:bg-[#18181B] text-[#A1A1AA] hover:text-[#F5F5F7] font-medium rounded-xl px-4 text-xs transition cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -445,26 +516,21 @@ export default function DashboardPage() {
           onClick={handleCloseModal}
         >
           <div
-            className="bg-[#141416] border border-[#27272A] rounded-xl p-5 sm:p-6 w-full max-w-sm shadow-2xl space-y-3.5"
+            className="bg-[#111113] border border-[#27272A] rounded-2xl p-6 sm:p-7 w-full max-w-sm shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[#F5F5F7]">Join Game</h3>
-              <button
-                onClick={handleCloseModal}
-                className="text-[#71717A] hover:text-[#F5F5F7] text-xs"
-              >
-                ✕
-              </button>
+              <h3 className="text-base font-semibold text-[#F5F5F7]">Join Game</h3>
+              <button onClick={handleCloseModal} className="text-[#71717A] hover:text-[#F5F5F7]">✕</button>
             </div>
 
             <p className="text-xs text-[#A1A1AA]">
               Enter the 8-character Game ID provided by your opponent.
             </p>
 
-            <form onSubmit={handleJoinGame} className="space-y-3">
+            <form onSubmit={handleJoinGame} className="space-y-4">
               {joinError && (
-                <div className="text-xs text-[#F87171] bg-[#F87171]/10 border border-[#F87171]/20 rounded-lg p-2.5">
+                <div className="text-xs text-[#F87171] bg-[#F87171]/10 border border-[#F87171]/20 rounded-xl p-3">
                   {joinError}
                 </div>
               )}
@@ -477,22 +543,22 @@ export default function DashboardPage() {
                   placeholder="Enter Game ID"
                   maxLength={12}
                   autoFocus
-                  className="w-full bg-[#0A0A0B] border border-[#27272A] focus:border-[#6EE7B7] text-[#F5F5F7] placeholder-[#71717A] rounded-lg h-10 px-3.5 text-xs font-mono tracking-wide transition outline-none"
+                  className="w-full bg-[#09090B] border border-[#27272A] focus:border-[#6EE7B7] text-[#F5F5F7] placeholder-[#71717A] rounded-xl h-11 px-4 text-sm font-mono tracking-wide transition outline-none"
                 />
               </div>
 
-              <div className="flex gap-2 pt-1">
+              <div className="flex gap-2.5 pt-1">
                 <button
                   type="submit"
                   disabled={joining || !joinId.trim()}
-                  className="flex-1 h-9 bg-[#F5F5F7] hover:bg-white active:scale-[0.99] disabled:opacity-50 text-[#0A0A0B] font-semibold rounded-lg text-xs transition cursor-pointer"
+                  className="flex-1 h-10 bg-[#F5F5F7] hover:bg-white active:scale-[0.99] disabled:opacity-50 text-[#09090B] font-semibold rounded-xl text-xs transition cursor-pointer"
                 >
                   {joining ? 'Connecting...' : 'Join Game'}
                 </button>
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="h-9 border border-[#27272A] hover:bg-[#1E1E22] text-[#A1A1AA] hover:text-[#F5F5F7] font-medium rounded-lg px-3.5 text-xs transition cursor-pointer"
+                  className="h-10 border border-[#27272A] hover:bg-[#18181B] text-[#A1A1AA] hover:text-[#F5F5F7] font-medium rounded-xl px-4 text-xs transition cursor-pointer"
                 >
                   Cancel
                 </button>
