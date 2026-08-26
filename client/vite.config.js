@@ -12,12 +12,12 @@ export default defineConfig({
     proxy: {
       // All /api requests from React get forwarded to the Express server
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
       // Socket.IO requests also forwarded to the same server
       '/socket.io': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3001',
         ws: true,  // Enable WebSocket proxying
         changeOrigin: true,
       },
