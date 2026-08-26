@@ -69,8 +69,8 @@ export default function DashboardPage() {
     setJoinError('')
     setJoining(true)
     try {
-      await joinGame(joinId.trim().toUpperCase())
-      navigate(`/game/${joinId.trim().toUpperCase()}`)
+      await joinGame(joinId.trim())
+      navigate(`/game/${joinId.trim()}`)
     } catch (err) {
       setJoinError(err.response?.data?.message || 'Failed to join game')
     } finally {
@@ -290,7 +290,7 @@ export default function DashboardPage() {
                     placeholder="e.g. V1StGXR8"
                     maxLength={8}
                     autoFocus
-                    className="w-full bg-[#0f1117] border border-[#2d3148] text-white text-center text-xl font-mono tracking-widest rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-700 uppercase transition"
+                    className="w-full bg-[#0f1117] border border-[#2d3148] text-white text-center text-xl font-mono tracking-widest rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-700 transition"
                   />
                   <button
                     type="submit"
