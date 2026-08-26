@@ -5,6 +5,7 @@ import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import GamePage from './pages/GamePage'
 import HistoryPage from './pages/HistoryPage'
+import ReplayPage from './pages/ReplayPage'
 
 // ProtectedRoute: shows a spinner while verifying token,
 // then redirects to /login if not authenticated
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/game/:gameId" element={<ProtectedRoute><GamePage /></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+        <Route path="/history/:gameId" element={<ProtectedRoute><ReplayPage /></ProtectedRoute>} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />

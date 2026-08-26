@@ -163,7 +163,17 @@ export default function DashboardPage() {
 
         {/* Game History */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Recent Games</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-white">Recent Games</h3>
+            {history.length > 0 && (
+              <button
+                onClick={() => navigate('/history')}
+                className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition"
+              >
+                View All History →
+              </button>
+            )}
+          </div>
           {historyLoading ? (
             <div className="bg-[#1e2130] border border-[#2d3148] rounded-2xl p-8 flex justify-center">
               <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
