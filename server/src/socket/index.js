@@ -60,6 +60,25 @@ const initSocket = (httpServer) => {
           activeGames.set(gameId, new Chess(game.currentFEN));
         }
 
+        // ── Reconnect clock recovery ──
+        // Calculate how much time has elapsed since the last move so the
+        // reconnecting client receives accurate clock values immediately.
+        // The server is the authority — the client never trusts its own countdown.
+        let currentWhiteTime = game.whiteTime;
+        let currentBlackTime = game.blackTime;
+
+        if (game.status === "ACTIVE" && game.lastMoveAt) {
+          const elapsed = Date.now() - new Date(game.lastMoveAt).getTime();
+          const chess = activeGames.get(gameId);
+          if (chess) {
+            if (chess.turn() === "w") {
+              currentWhiteTime = Math.max(0, game.whiteTime - elapsed);
+            } else {
+              currentBlackTime = Math.max(0, game.blackTime - elapsed);
+            }
+          }
+        }
+
         // Send full current state to the joining player
         socket.emit("game-state", {
           fen: game.currentFEN,
@@ -68,8 +87,8 @@ const initSocket = (httpServer) => {
           color: socket.color,
           whitePlayer: game.whitePlayer?.username,
           blackPlayer: game.blackPlayer?.username,
-          whiteTime: game.whiteTime,
-          blackTime: game.blackTime,
+          whiteTime: currentWhiteTime,
+          blackTime: currentBlackTime,
           result: game.result,
           resultReason: game.resultReason,
         });
@@ -107,11 +126,49 @@ const initSocket = (httpServer) => {
           return socket.emit("move-error", { message: "It's not your turn" });
         }
 
+        // ── Server-authoritative clock: calculate elapsed time ──
+        // lastMoveAt is set when the game becomes ACTIVE (when black joins)
+        // and updated after every successful move.
+        const now = Date.now();
+        const elapsed = game.lastMoveAt
+          ? now - new Date(game.lastMoveAt).getTime()
+          : 0;
+
+        // Check timeout BEFORE accepting the move.
+        // If the moving player has run out of time, they lose — move is rejected.
+        const movingPlayerTime = socket.color === "w" ? game.whiteTime : game.blackTime;
+        if (elapsed > movingPlayerTime && game.moves.length > 0) {
+          // Timeout — declare the opponent as winner
+          const winnerColor = socket.color === "w" ? "black" : "white";
+          const winnerId = winnerColor === "white" ? game.whitePlayer : game.blackPlayer;
+          game.status = "COMPLETED";
+          game.result = winnerColor;
+          game.resultReason = "timeout";
+          game.winner = winnerId;
+          game.completedAt = new Date();
+          if (socket.color === "w") game.whiteTime = 0;
+          else game.blackTime = 0;
+          await game.save();
+          io.to(gameId).emit("game-over", { result: winnerColor, resultReason: "timeout", winnerId });
+          activeGames.delete(gameId);
+          return;
+        }
+
         // Let chess.js validate the move — this is the source of truth
         // promotion defaults to queen ('q') which is correct 99% of the time
         const move = chess.move({ from, to, promotion: promotion || "q" });
         if (!move) {
           return socket.emit("move-error", { message: "Illegal move" });
+        }
+
+        // ── Update clocks ──
+        // Deduct elapsed time from the moving player, then add the 10s increment.
+        // The increment rewards making a move (standard chess clock rule).
+        const INCREMENT_MS = game.increment * 1000; // 10s in ms
+        if (socket.color === "w") {
+          game.whiteTime = Math.max(0, game.whiteTime - elapsed) + INCREMENT_MS;
+        } else {
+          game.blackTime = Math.max(0, game.blackTime - elapsed) + INCREMENT_MS;
         }
 
         // Build the move record with SAN from chess.js
@@ -127,7 +184,7 @@ const initSocket = (httpServer) => {
         // Persist the new state to MongoDB
         game.currentFEN = chess.fen();
         game.moves.push(moveRecord);
-        game.lastMoveAt = new Date();
+        game.lastMoveAt = new Date(now); // record when this move was made
 
         // ── Check for game-over conditions via chess.js ──
         let gameOver = false;

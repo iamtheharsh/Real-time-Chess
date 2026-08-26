@@ -39,6 +39,7 @@ export default function GamePage() {
   const [opponentLeft, setOpponentLeft] = useState(false)
   const [moveError, setMoveError] = useState('')
   const [lastMove, setLastMove] = useState(null)      // { from, to } for highlighting
+  const [reconnecting, setReconnecting] = useState(false)
 
   // ── Derive current turn from FEN ──
   const currentTurn = fen === 'start' ? 'w' : fen.split(' ')[1]
@@ -74,10 +75,19 @@ export default function GamePage() {
   useEffect(() => {
     if (!socket || !gameId) return
 
-    // Emit join after socket connects (or immediately if already connected)
-    const emitJoin = () => socket.emit('join-game', { gameId })
+    // Always re-join on connect AND reconnect.
+    // Socket.IO fires 'connect' on initial connect AND after every reconnection.
+    // This is the mechanism for seamless reconnect recovery:
+    // server recalculates live clock values and sends full game state.
+    const emitJoin = () => {
+      setReconnecting(false)
+      socket.emit('join-game', { gameId })
+    }
+    socket.on('connect', emitJoin)
     if (socket.connected) emitJoin()
-    else socket.on('connect', emitJoin)
+
+    // Show reconnecting banner while socket is trying to reconnect
+    socket.on('disconnect', () => setReconnecting(true))
 
     // Server sends full game state on join (handles reconnects too)
     socket.on('game-state', (data) => {
@@ -131,6 +141,7 @@ export default function GamePage() {
 
     return () => {
       socket.off('connect', emitJoin)
+      socket.off('disconnect')
       socket.off('game-state')
       socket.off('move-made')
       socket.off('game-over')
@@ -208,6 +219,14 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen bg-[#0f1117] text-white flex flex-col">
+
+      {/* Reconnecting banner */}
+      {reconnecting && (
+        <div className="fixed top-0 inset-x-0 bg-yellow-600/90 text-white text-xs text-center py-2 z-50 flex items-center justify-center gap-2">
+          <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          Reconnecting to game...
+        </div>
+      )}
 
       {/* Navbar */}
       <header className="border-b border-[#2d3148] bg-[#1a1d27] px-6 py-3 flex items-center justify-between flex-shrink-0">
