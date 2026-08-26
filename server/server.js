@@ -4,14 +4,20 @@ const http = require("http");
 const cors = require("cors");
 const connectDB = require("./src/config/db");
 
+const initSocket = require("./src/socket/index");
+
 const app = express();
 
 // --- Create HTTP server ---
-// We wrap Express in a raw HTTP server so Socket.IO can attach to it later (Phase 4)
+// Socket.IO must attach to the raw HTTP server, not the Express app directly
 const httpServer = http.createServer(app);
+
+// --- Initialize Socket.IO ---
+const io = initSocket(httpServer);
 
 // --- Connect to MongoDB ---
 connectDB();
+
 
 // --- Middleware ---
 app.use(
