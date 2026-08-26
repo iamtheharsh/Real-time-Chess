@@ -23,8 +23,8 @@ app.use(
 app.use(express.json()); // Parse JSON request bodies
 
 // --- Routes ---
-// Phase 2: Auth routes will be added here
-// app.use("/api/auth", require("./src/routes/auth"));
+// Auth routes
+app.use("/api/auth", require("./src/routes/auth"));
 
 // Phase 3: Game routes will be added here
 // app.use("/api/games", require("./src/routes/games"));

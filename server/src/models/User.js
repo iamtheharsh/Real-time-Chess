@@ -35,15 +35,14 @@ const userSchema = new mongoose.Schema(
 
 // --- Pre-save hook: Hash password before saving ---
 // This runs automatically before every .save() call
-// It does NOT run on .findOneAndUpdate() — that's intentional
-userSchema.pre("save", async function (next) {
+// Note: bcryptjs v3+ uses promise-based hooks — do NOT call next()
+userSchema.pre("save", async function () {
   // Only hash if password was actually modified (prevents re-hashing on profile updates)
-  if (!this.isModified("password")) return next();
+  if (!this.isModified("password")) return;
 
   // saltRounds=10 is the industry standard. Higher = slower but more secure
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // --- Instance method: Compare entered password with hashed password ---
