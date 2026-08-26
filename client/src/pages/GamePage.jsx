@@ -4,7 +4,7 @@ import { Chessboard } from 'react-chessboard'
 import { useAuth } from '../context/AuthContext'
 import { useSocket } from '../hooks/useSocket'
 
-// Format seconds → mm:ss
+// Format milliseconds → mm:ss
 const fmt = (ms) => {
   const totalSec = Math.max(0, Math.floor(ms / 1000))
   const m = Math.floor(totalSec / 60).toString().padStart(2, '0')
@@ -20,39 +20,39 @@ export default function GamePage() {
 
   // ── Game state ──
   const [fen, setFen] = useState('start')
-  const [moves, setMoves] = useState([])         // array of { san, player }
-  const [myColor, setMyColor] = useState(null)   // 'w' | 'b'
+  const [moves, setMoves] = useState([])
+  const [myColor, setMyColor] = useState(null)
   const [status, setStatus] = useState('WAITING')
   const [whitePlayer, setWhitePlayer] = useState('')
   const [blackPlayer, setBlackPlayer] = useState('')
 
-  // ── Clocks ── (ms)
+  // ── Clocks (ms) ──
   const [whiteTime, setWhiteTime] = useState(600000)
   const [blackTime, setBlackTime] = useState(600000)
-  const [activeClock, setActiveClock] = useState('w') // whose clock is ticking
   const clockRef = useRef(null)
   const lastTickRef = useRef(Date.now())
 
   // ── UI state ──
-  const [gameOver, setGameOver] = useState(null)      // { result, resultReason }
+  const [gameOver, setGameOver] = useState(null)
   const [drawOffered, setDrawOffered] = useState(false)
   const [opponentLeft, setOpponentLeft] = useState(false)
   const [moveError, setMoveError] = useState('')
-  const [lastMove, setLastMove] = useState(null)      // { from, to } for highlighting
-  const [selectedSquare, setSelectedSquare] = useState(null) // square selected for click-to-move
+  const [lastMove, setLastMove] = useState(null)
+  const [selectedSquare, setSelectedSquare] = useState(null)
   const [reconnecting, setReconnecting] = useState(false)
+  const [copied, setCopied] = useState(false)
 
-  // ── Derive current turn from FEN ──
+  // Derive turn
   const currentTurn = fen === 'start' ? 'w' : fen.split(' ')[1]
   const isMyTurn = myColor === currentTurn
 
-  // ── Pair moves into rows [{ white: 'e4', black: 'e5' }] ──
+  // Move pairs for table
   const movePairs = []
   for (let i = 0; i < moves.length; i += 2) {
     movePairs.push({ white: moves[i]?.san, black: moves[i + 1]?.san })
   }
 
-  // ── Client-side clock tick (cosmetic, re-syncs from server on every move) ──
+  // Client-side clock tick
   useEffect(() => {
     if (status !== 'ACTIVE' || gameOver) {
       clearInterval(clockRef.current)
@@ -72,14 +72,10 @@ export default function GamePage() {
     return () => clearInterval(clockRef.current)
   }, [status, gameOver, currentTurn])
 
-  // ── Socket event listeners ──
+  // Socket event listeners
   useEffect(() => {
     if (!socket || !gameId) return
 
-    // Always re-join on connect AND reconnect.
-    // Socket.IO fires 'connect' on initial connect AND after every reconnection.
-    // This is the mechanism for seamless reconnect recovery:
-    // server recalculates live clock values and sends full game state.
     const emitJoin = () => {
       setReconnecting(false)
       socket.emit('join-game', { gameId })
@@ -87,10 +83,8 @@ export default function GamePage() {
     socket.on('connect', emitJoin)
     if (socket.connected) emitJoin()
 
-    // Show reconnecting banner while socket is trying to reconnect
     socket.on('disconnect', () => setReconnecting(true))
 
-    // Server sends full game state on join (handles reconnects too)
     socket.on('game-state', (data) => {
       setFen(data.fen || 'start')
       setMoves(data.moves || [])
@@ -103,28 +97,23 @@ export default function GamePage() {
       if (data.result) setGameOver({ result: data.result, resultReason: data.resultReason })
     })
 
-    // A valid move was made (by either player)
     socket.on('move-made', (data) => {
       setFen(data.fen)
       setMoves((prev) => [...prev, data.move])
       setLastMove({ from: data.move.from, to: data.move.to })
       setSelectedSquare(null)
-      // Re-sync clocks from server truth
       setWhiteTime(data.whiteTime)
       setBlackTime(data.blackTime)
     })
 
-    // Game ended (checkmate, stalemate, resign, draw, timeout)
     socket.on('game-over', (data) => {
       setGameOver({ result: data.result, resultReason: data.resultReason, winnerId: data.winnerId })
       setStatus('COMPLETED')
     })
 
-    // Draw offer events
     socket.on('draw-offered', () => setDrawOffered(true))
     socket.on('draw-declined', () => setDrawOffered(false))
 
-    // Opponent joined the waiting room
     socket.on('opponent-joined', (data) => {
       setStatus(data?.status || 'ACTIVE')
       setOpponentLeft(false)
@@ -132,13 +121,11 @@ export default function GamePage() {
       if (data?.blackPlayer) setBlackPlayer(data.blackPlayer)
     })
 
-    // Opponent disconnected temporarily
     socket.on('opponent-disconnected', () => setOpponentLeft(true))
 
-    // Move was rejected by server
     socket.on('move-error', (data) => {
       setMoveError(data.message)
-      setTimeout(() => setMoveError(''), 2500)
+      setTimeout(() => setMoveError(''), 2000)
     })
 
     socket.on('error', (data) => {
@@ -160,7 +147,7 @@ export default function GamePage() {
     }
   }, [socket, gameId])
 
-  // ── onPieceDrop: called by react-chessboard when user drags a piece ──
+  // Drag and drop handler
   const onPieceDrop = useCallback((args) => {
     let from, to, pieceObj
     if (args && typeof args === 'object' && 'sourceSquare' in args) {
@@ -176,7 +163,6 @@ export default function GamePage() {
     if (!to || from === to) return false
     if (!isMyTurn || gameOver || status !== 'ACTIVE') return false
 
-    // Detect pawn promotion
     const pieceType = pieceObj?.pieceType || (typeof pieceObj === 'string' ? pieceObj : '')
     const isPawn = pieceType.toLowerCase().includes('p')
     const isPromotion =
@@ -193,7 +179,7 @@ export default function GamePage() {
     return true
   }, [isMyTurn, gameOver, status, myColor, socket, gameId])
 
-  // ── onSquareClick: click-to-move support ──
+  // Click to move handler
   const onSquareClick = useCallback((args) => {
     if (!isMyTurn || gameOver || status !== 'ACTIVE') {
       setSelectedSquare(null)
@@ -205,7 +191,6 @@ export default function GamePage() {
     const pieceType = piece?.pieceType || (typeof piece === 'string' ? piece : '')
     const pieceColor = pieceType?.[0]
 
-    // 1. If no square is currently selected
     if (!selectedSquare) {
       if (pieceColor === myColor) {
         setSelectedSquare(clickedSquare)
@@ -213,19 +198,16 @@ export default function GamePage() {
       return
     }
 
-    // 2. If clicking the exact same square -> deselect
     if (selectedSquare === clickedSquare) {
       setSelectedSquare(null)
       return
     }
 
-    // 3. If clicking another piece of the player's own color -> switch selection
     if (pieceColor === myColor) {
       setSelectedSquare(clickedSquare)
       return
     }
 
-    // 4. Otherwise -> attempt move from selectedSquare to clickedSquare
     const isPromotion =
       (myColor === 'w' && clickedSquare[1] === '8') ||
       (myColor === 'b' && clickedSquare[1] === '1')
@@ -258,104 +240,131 @@ export default function GamePage() {
   const handleAcceptDraw = () => { socket.emit('accept-draw', { gameId }); setDrawOffered(false) }
   const handleDeclineDraw = () => { socket.emit('decline-draw', { gameId }); setDrawOffered(false) }
 
-  // Custom square styles for last move highlight and selected square
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(gameId)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  // Board square highlights
   const customSquareStyles = {
     ...(lastMove
       ? {
-          [lastMove.from]: { backgroundColor: 'rgba(255, 255, 100, 0.35)' },
-          [lastMove.to]: { backgroundColor: 'rgba(255, 255, 100, 0.45)' },
+          [lastMove.from]: { backgroundColor: 'rgba(110, 231, 183, 0.2)' },
+          [lastMove.to]: { backgroundColor: 'rgba(110, 231, 183, 0.3)' },
         }
       : {}),
     ...(selectedSquare
       ? {
-          [selectedSquare]: { backgroundColor: 'rgba(99, 102, 241, 0.65)' },
+          [selectedSquare]: { backgroundColor: 'rgba(110, 231, 183, 0.4)' },
         }
       : {}),
   }
 
-  // ── Game over result label ──
+  // Result summary
   const getResultLabel = () => {
     if (!gameOver) return null
-    if (gameOver.result === 'draw') return { title: 'Draw!', color: 'text-yellow-400', sub: gameOver.resultReason?.replace(/_/g, ' ') }
+    if (gameOver.result === 'draw') return { title: 'Draw', color: 'text-[#A1A1AA]', sub: gameOver.resultReason?.replace(/_/g, ' ') }
     const iWon = (gameOver.result === 'white' && myColor === 'w') || (gameOver.result === 'black' && myColor === 'b')
     return {
-      title: iWon ? 'You Won! 🎉' : 'You Lost',
-      color: iWon ? 'text-green-400' : 'text-red-400',
+      title: iWon ? 'Victory' : 'Defeat',
+      color: iWon ? 'text-[#6EE7B7]' : 'text-[#F87171]',
       sub: gameOver.resultReason?.replace(/_/g, ' '),
     }
   }
 
   const resultLabel = getResultLabel()
 
-  // ── Clock display component ──
+  // Minimal Clock component
   const Clock = ({ time, label, active, isMe }) => (
-    <div className={`flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all ${
+    <div className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
       active && status === 'ACTIVE' && !gameOver
-        ? 'bg-white text-black border-white'
-        : 'bg-[#1e2130] text-white border-[#2d3148]'
+        ? 'bg-[#1B1B1E] text-[#F5F5F7] border-[#6EE7B7]/40 shadow-sm'
+        : 'bg-[#111113] text-[#A1A1AA] border-[#27272A]'
     }`}>
-      <span className={`text-sm font-medium ${active && status === 'ACTIVE' ? 'text-gray-700' : 'text-slate-400'}`}>
-        {label} {isMe && '(You)'}
-      </span>
-      <span className="text-xl font-mono font-bold tabular-nums">{fmt(time)}</span>
+      <div className="flex items-center gap-2">
+        {active && status === 'ACTIVE' && !gameOver && (
+          <span className="w-1.5 h-1.5 rounded-full bg-[#6EE7B7] animate-pulse" />
+        )}
+        <span className={`text-xs font-medium ${active && status === 'ACTIVE' ? 'text-[#F5F5F7]' : 'text-[#71717A]'}`}>
+          {label} {isMe && '(You)'}
+        </span>
+      </div>
+      <span className="text-base font-mono font-bold tracking-wider tabular-nums text-[#F5F5F7]">{fmt(time)}</span>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-white flex flex-col">
-
+    <div className="min-h-screen bg-[#0A0A0B] text-[#F5F5F7] flex flex-col antialiased selection:bg-[#6EE7B7]/20 selection:text-[#6EE7B7]">
+      
       {/* Reconnecting banner */}
       {reconnecting && (
-        <div className="fixed top-0 inset-x-0 bg-yellow-600/90 text-white text-xs text-center py-2 z-50 flex items-center justify-center gap-2">
-          <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          Reconnecting to game...
+        <div className="bg-[#111113] border-b border-[#27272A] text-xs text-[#FBBF24] text-center py-1.5 flex items-center justify-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#FBBF24] animate-ping" />
+          <span>Reconnecting to game room...</span>
         </div>
       )}
 
-      {/* Navbar */}
-      <header className="border-b border-[#2d3148] bg-[#1a1d27] px-6 py-3 flex items-center justify-between flex-shrink-0">
+      {/* Header */}
+      <header className="border-b border-[#27272A] bg-[#0A0A0B]/80 backdrop-blur-md px-5 sm:px-8 h-14 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')}>
-          <span className="text-xl">♟️</span>
-          <span className="font-bold text-sm tracking-tight">Real-Time Chess</span>
+          <span className="text-lg">♟</span>
+          <span className="font-semibold text-sm tracking-tight text-[#F5F5F7]">Real-Time Chess</span>
         </div>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-slate-500 font-mono text-xs">Game #{gameId}</span>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-[#71717A] font-mono">#{gameId}</span>
           {status === 'ACTIVE' && !gameOver && (
-            <span className="bg-green-500/10 text-green-400 border border-green-500/20 rounded-full px-3 py-0.5 text-xs font-medium">
-              Live
+            <span className="flex items-center gap-1.5 text-[#6EE7B7]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#6EE7B7] animate-pulse" />
+              <span>Live</span>
             </span>
           )}
         </div>
       </header>
 
-      {/* ── Waiting state ── */}
+      {/* ── Waiting State ── */}
       {status === 'WAITING' && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-1">Waiting for opponent</h2>
-            <p className="text-slate-400 text-sm mb-4">Share the game ID to invite someone</p>
-            <div className="inline-flex items-center gap-3 bg-[#1e2130] border border-[#2d3148] rounded-xl px-5 py-3">
-              <span className="text-2xl font-mono font-bold tracking-widest text-indigo-400">{gameId}</span>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="bg-[#111113] border border-[#27272A] rounded-xl p-8 max-w-sm w-full text-center space-y-5 shadow-xl">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-[#F5F5F7]">Waiting for opponent</h2>
+              <p className="text-xs text-[#71717A]">Share the game code to begin</p>
+            </div>
+
+            <div className="bg-[#0A0A0B] border border-[#27272A] rounded-lg p-3 flex items-center justify-between">
+              <span className="text-xl font-mono font-bold tracking-widest text-[#F5F5F7]">{gameId}</span>
               <button
-                onClick={() => navigator.clipboard.writeText(gameId)}
-                className="text-xs text-slate-400 hover:text-white border border-[#2d3148] rounded-lg px-2 py-1 transition"
+                onClick={handleCopyId}
+                className="bg-[#1B1B1E] hover:bg-[#27272A] text-xs text-[#F5F5F7] border border-[#27272A] rounded-md px-3 py-1.5 transition"
               >
-                Copy
+                {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
+
+            <div className="flex items-center justify-center gap-2 text-xs text-[#A1A1AA]">
+              <span className="w-2 h-2 rounded-full bg-[#6EE7B7] animate-pulse" />
+              <span>Room is active and listening...</span>
+            </div>
+
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="w-full text-xs text-[#71717A] hover:text-[#F5F5F7] transition py-2"
+            >
+              Cancel Match
+            </button>
           </div>
         </div>
       )}
 
-      {/* ── Active game layout ── */}
+      {/* ── Active Game Layout ── */}
       {status !== 'WAITING' && (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="flex flex-col lg:flex-row gap-4 w-full max-w-5xl">
+        <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
+          <div className="flex flex-col lg:flex-row gap-6 w-full max-w-5xl items-center lg:items-start justify-center">
 
-            {/* ── Board column ── */}
-            <div className="flex flex-col gap-3 flex-shrink-0">
-              {/* Opponent clock (top) */}
+            {/* Board Column (Hero) */}
+            <div className="flex flex-col gap-2.5 w-full max-w-[460px]">
+              
+              {/* Opponent Clock (Top) */}
               <Clock
                 time={myColor === 'w' ? blackTime : whiteTime}
                 label={myColor === 'w' ? blackPlayer : whitePlayer}
@@ -363,8 +372,8 @@ export default function GamePage() {
                 isMe={false}
               />
 
-              {/* Chess Board */}
-              <div className="relative">
+              {/* The Chessboard */}
+              <div className="relative aspect-square bg-[#111113] border border-[#27272A] rounded-xl overflow-hidden shadow-2xl p-2 flex items-center justify-center">
                 <Chessboard
                   options={{
                     id: "main-board",
@@ -375,21 +384,21 @@ export default function GamePage() {
                     allowDragging: isMyTurn && status === 'ACTIVE' && !gameOver,
                     boardOrientation: myColor === 'b' ? 'black' : 'white',
                     squareStyles: customSquareStyles,
-                    boardStyle: { borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', width: '100%', maxWidth: '480px' },
-                    darkSquareStyle: { backgroundColor: '#4a6741' },
-                    lightSquareStyle: { backgroundColor: '#f0d9b5' },
+                    boardStyle: { borderRadius: '6px', width: '100%', maxWidth: '440px' },
+                    darkSquareStyle: { backgroundColor: '#27272A' },
+                    lightSquareStyle: { backgroundColor: '#E4E4E7' },
                   }}
                 />
 
-                {/* Move error toast */}
+                {/* Move Error Toast */}
                 {moveError && (
-                  <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-red-600 text-white text-xs font-medium px-4 py-2 rounded-lg shadow-lg z-10 animate-bounce">
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-[#F87171] text-[#0A0A0B] text-xs font-semibold px-3 py-1.5 rounded shadow-lg z-20">
                     {moveError}
                   </div>
                 )}
               </div>
 
-              {/* My clock (bottom) */}
+              {/* Player Clock (Bottom) */}
               <Clock
                 time={myColor === 'w' ? whiteTime : blackTime}
                 label={myColor === 'w' ? whitePlayer : blackPlayer}
@@ -398,43 +407,43 @@ export default function GamePage() {
               />
             </div>
 
-            {/* ── Sidebar ── */}
-            <div className="flex flex-col gap-3 flex-1 min-w-0 lg:max-w-64">
-
-              {/* Turn indicator */}
+            {/* Sidebar / Move History */}
+            <div className="flex flex-col gap-3 w-full max-w-[460px] lg:max-w-64 h-[440px] lg:h-[530px]">
+              
+              {/* Turn Banner */}
               {!gameOver && status === 'ACTIVE' && (
-                <div className={`text-center text-sm font-medium py-2 px-4 rounded-xl border ${
+                <div className={`text-xs font-medium py-2 px-3 rounded-lg border text-center transition ${
                   isMyTurn
-                    ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
-                    : 'bg-[#1e2130] text-slate-400 border-[#2d3148]'
+                    ? 'bg-[#1B1B1E] text-[#6EE7B7] border-[#6EE7B7]/30'
+                    : 'bg-[#111113] text-[#71717A] border-[#27272A]'
                 }`}>
-                  {isMyTurn ? '⚡ Your turn' : "Opponent's turn"}
+                  {isMyTurn ? 'Your turn to move' : "Waiting for opponent..."}
                 </div>
               )}
 
-              {/* Opponent disconnected banner */}
+              {/* Opponent Disconnected Indicator */}
               {opponentLeft && (
-                <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs rounded-xl px-4 py-2 text-center">
-                  ⚠️ Opponent disconnected
+                <div className="text-xs text-[#FBBF24] bg-[#FBBF24]/10 border border-[#FBBF24]/20 rounded-lg p-2 text-center">
+                  Opponent disconnected
                 </div>
               )}
 
-              {/* Move history */}
-              <div className="bg-[#1e2130] border border-[#2d3148] rounded-xl flex-1 flex flex-col min-h-0">
-                <div className="px-4 py-3 border-b border-[#2d3148]">
-                  <h3 className="text-sm font-semibold text-slate-300">Move History</h3>
+              {/* Move History Table */}
+              <div className="bg-[#111113] border border-[#27272A] rounded-xl flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className="px-3.5 py-2.5 border-b border-[#1D1D20]">
+                  <div className="text-xs font-semibold text-[#71717A] uppercase tracking-wider">Moves</div>
                 </div>
-                <div className="overflow-y-auto flex-1 p-2 max-h-72 lg:max-h-96">
+                <div className="overflow-y-auto flex-1 p-2">
                   {movePairs.length === 0 ? (
-                    <p className="text-slate-600 text-xs text-center py-4">No moves yet</p>
+                    <div className="text-center py-8 text-xs text-[#71717A]">No moves yet</div>
                   ) : (
                     <table className="w-full text-xs">
                       <tbody>
                         {movePairs.map((pair, i) => (
-                          <tr key={i} className="hover:bg-[#252840] rounded">
-                            <td className="text-slate-500 px-2 py-1 w-6">{i + 1}.</td>
-                            <td className="text-white font-mono px-2 py-1 w-20">{pair.white}</td>
-                            <td className="text-slate-300 font-mono px-2 py-1">{pair.black || ''}</td>
+                          <tr key={i} className="hover:bg-[#1B1B1E] rounded">
+                            <td className="text-[#71717A] px-2 py-0.5 w-6 font-mono">{i + 1}.</td>
+                            <td className="text-[#F5F5F7] font-mono px-2 py-0.5 w-20">{pair.white}</td>
+                            <td className="text-[#A1A1AA] font-mono px-2 py-0.5">{pair.black || ''}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -443,20 +452,20 @@ export default function GamePage() {
                 </div>
               </div>
 
-              {/* Draw offer banner */}
+              {/* Draw Offer Prompt */}
               {drawOffered && (
-                <div className="bg-[#1e2130] border border-yellow-500/40 rounded-xl p-4 text-center">
-                  <p className="text-yellow-400 text-sm font-medium mb-3">Draw offered</p>
+                <div className="bg-[#111113] border border-[#27272A] rounded-xl p-3 text-center space-y-2">
+                  <div className="text-xs text-[#A1A1AA]">Draw offered by opponent</div>
                   <div className="flex gap-2">
                     <button
                       onClick={handleAcceptDraw}
-                      className="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-semibold rounded-lg py-2 transition"
+                      className="flex-1 bg-[#F5F5F7] hover:bg-white text-[#0A0A0B] text-xs font-medium py-1.5 rounded-lg transition"
                     >
                       Accept
                     </button>
                     <button
                       onClick={handleDeclineDraw}
-                      className="flex-1 bg-[#0f1117] hover:bg-[#252840] border border-[#2d3148] text-slate-300 text-xs rounded-lg py-2 transition"
+                      className="flex-1 border border-[#27272A] hover:bg-[#1B1B1E] text-xs text-[#A1A1AA] py-1.5 rounded-lg transition"
                     >
                       Decline
                     </button>
@@ -464,58 +473,58 @@ export default function GamePage() {
                 </div>
               )}
 
-              {/* Action buttons */}
+              {/* Action Buttons */}
               {!gameOver && status === 'ACTIVE' && (
                 <div className="flex gap-2">
                   <button
                     onClick={handleOfferDraw}
-                    className="flex-1 bg-[#1e2130] hover:bg-[#252840] border border-[#2d3148] text-slate-300 hover:text-white text-xs font-medium rounded-xl py-2.5 transition"
+                    className="flex-1 bg-[#111113] hover:bg-[#1B1B1E] border border-[#27272A] text-xs text-[#A1A1AA] hover:text-[#F5F5F7] py-2 rounded-lg transition"
                   >
-                    Offer Draw
+                    Draw
                   </button>
                   <button
                     onClick={handleResign}
-                    className="flex-1 bg-red-900/30 hover:bg-red-900/50 border border-red-800/40 text-red-400 hover:text-red-300 text-xs font-medium rounded-xl py-2.5 transition"
+                    className="flex-1 bg-[#111113] hover:bg-[#1B1B1E] border border-[#27272A] text-xs text-[#F87171] hover:text-[#F87171] py-2 rounded-lg transition"
                   >
                     Resign
                   </button>
                 </div>
               )}
 
-              {/* Back to dashboard after game ends */}
               {gameOver && (
                 <button
                   onClick={() => navigate('/dashboard')}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl py-2.5 transition"
+                  className="w-full bg-[#F5F5F7] hover:bg-white text-[#0A0A0B] text-xs font-medium py-2.5 rounded-lg transition"
                 >
                   Back to Dashboard
                 </button>
               )}
+
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Game Over Overlay ── */}
+      {/* ── Game Over Modal ── */}
       {gameOver && resultLabel && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-          <div className="bg-[#1e2130] border border-[#2d3148] rounded-2xl p-8 text-center max-w-sm w-full shadow-2xl">
-            <div className="text-5xl mb-4">
-              {gameOver.result === 'draw' ? '🤝' : resultLabel.title.includes('Won') ? '👑' : '😔'}
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111113] border border-[#27272A] rounded-xl p-6 text-center max-w-xs w-full shadow-2xl space-y-4">
+            <div>
+              <h2 className={`text-xl font-semibold ${resultLabel.color}`}>{resultLabel.title}</h2>
+              <p className="text-xs text-[#71717A] capitalize mt-1">
+                {resultLabel.sub || 'Game completed'}
+              </p>
             </div>
-            <h2 className={`text-2xl font-bold mb-1 ${resultLabel.color}`}>{resultLabel.title}</h2>
-            <p className="text-slate-400 text-sm capitalize mb-6">
-              {resultLabel.sub || 'Game over'}
-            </p>
             <button
               onClick={() => navigate('/dashboard')}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl py-3 transition"
+              className="w-full bg-[#F5F5F7] hover:bg-white text-[#0A0A0B] text-xs font-medium py-2 rounded-lg transition"
             >
               Back to Dashboard
             </button>
           </div>
         </div>
       )}
+
     </div>
   )
 }
