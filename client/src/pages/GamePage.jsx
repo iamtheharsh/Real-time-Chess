@@ -3,8 +3,27 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Chessboard } from 'react-chessboard'
 import { useAuth } from '../context/AuthContext'
 import { useSocket } from '../hooks/useSocket'
+import { ArrowLeft, Copy, Check } from 'lucide-react'
 
-// Format milliseconds → mm:ss
+// ── Design Tokens ──────────────────────────────────────────────────────────────
+const T = {
+  bg: '#0D0A07',
+  surfaceMain: 'rgba(18, 14, 10, 0.92)',
+  surfaceSub: 'rgba(28, 22, 16, 0.85)',
+  border: '#3A2E20',
+  borderSubtle: 'rgba(58, 46, 32, 0.55)',
+  textPrimary: '#F5F0E8',
+  textSecondary: '#B8AEA0',
+  textMuted: '#81776A',
+  accent: '#D6A84F',
+  accentHover: '#E3BC68',
+  win: '#70C69A',
+  loss: '#E57373',
+  draw: '#B8AEA0',
+  warning: '#E8B84B',
+}
+
+// Format ms → mm:ss
 const fmt = (ms) => {
   const totalSec = Math.max(0, Math.floor(ms / 1000))
   const m = Math.floor(totalSec / 60).toString().padStart(2, '0')
@@ -12,13 +31,58 @@ const fmt = (ms) => {
   return `${m}:${s}`
 }
 
+// ── Clock Component ─────────────────────────────────────────────────────────
+function ClockBar({ time, label, active, isMe }) {
+  const isLow = time < 30000
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 16px',
+        borderRadius: 12,
+        border: `1px solid ${active ? (isLow ? T.loss : T.accent) : T.border}`,
+        background: active
+          ? (isLow ? 'rgba(229,115,115,0.08)' : 'rgba(214,168,79,0.07)')
+          : T.surfaceSub,
+        transition: 'all 0.3s',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {active && (
+          <span
+            style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: isLow ? T.loss : T.accent,
+              display: 'inline-block',
+              animation: 'pulse 1.4s ease-in-out infinite',
+            }}
+          />
+        )}
+        <span style={{ fontSize: 13, fontWeight: 500, color: active ? T.textPrimary : T.textMuted }}>
+          {label}{isMe ? ' (You)' : ''}
+        </span>
+      </div>
+      <span
+        style={{
+          fontSize: 18, fontFamily: 'monospace', fontWeight: 700,
+          letterSpacing: '0.05em',
+          color: isLow && active ? T.loss : (active ? T.textPrimary : T.textSecondary),
+          transition: 'color 0.3s',
+        }}
+      >
+        {fmt(time)}
+      </span>
+    </div>
+  )
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────────
 export default function GamePage() {
   const { gameId } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
   const socket = useSocket()
 
-  // ── Game state ──
   const [fen, setFen] = useState('start')
   const [moves, setMoves] = useState([])
   const [myColor, setMyColor] = useState(null)
@@ -26,13 +90,11 @@ export default function GamePage() {
   const [whitePlayer, setWhitePlayer] = useState('')
   const [blackPlayer, setBlackPlayer] = useState('')
 
-  // ── Clocks (ms) ──
   const [whiteTime, setWhiteTime] = useState(600000)
   const [blackTime, setBlackTime] = useState(600000)
   const clockRef = useRef(null)
   const lastTickRef = useRef(Date.now())
 
-  // ── UI state ──
   const [gameOver, setGameOver] = useState(null)
   const [drawOffered, setDrawOffered] = useState(false)
   const [opponentLeft, setOpponentLeft] = useState(false)
@@ -41,12 +103,11 @@ export default function GamePage() {
   const [selectedSquare, setSelectedSquare] = useState(null)
   const [reconnecting, setReconnecting] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showGameOver, setShowGameOver] = useState(false)
 
-  // Derive turn
   const currentTurn = fen === 'start' ? 'w' : fen.split(' ')[1]
   const isMyTurn = myColor === currentTurn
 
-  // Move pairs for table
   const movePairs = []
   for (let i = 0; i < moves.length; i += 2) {
     movePairs.push({ white: moves[i]?.san, black: moves[i + 1]?.san })
@@ -63,16 +124,23 @@ export default function GamePage() {
       const now = Date.now()
       const delta = now - lastTickRef.current
       lastTickRef.current = now
-      if (currentTurn === 'w') {
-        setWhiteTime((t) => Math.max(0, t - delta))
-      } else {
-        setBlackTime((t) => Math.max(0, t - delta))
-      }
+      if (currentTurn === 'w') setWhiteTime(t => Math.max(0, t - delta))
+      else setBlackTime(t => Math.max(0, t - delta))
     }, 200)
     return () => clearInterval(clockRef.current)
   }, [status, gameOver, currentTurn])
 
-  // Socket event listeners
+  // Show game-over modal with a tiny delay so board renders first
+  useEffect(() => {
+    if (gameOver) {
+      const t = setTimeout(() => setShowGameOver(true), 600)
+      return () => clearTimeout(t)
+    } else {
+      setShowGameOver(false)
+    }
+  }, [gameOver])
+
+  // Socket listeners
   useEffect(() => {
     if (!socket || !gameId) return
 
@@ -99,7 +167,7 @@ export default function GamePage() {
 
     socket.on('move-made', (data) => {
       setFen(data.fen)
-      setMoves((prev) => [...prev, data.move])
+      setMoves(prev => [...prev, data.move])
       setLastMove({ from: data.move.from, to: data.move.to })
       setSelectedSquare(null)
       setWhiteTime(data.whiteTime)
@@ -114,23 +182,24 @@ export default function GamePage() {
     socket.on('draw-offered', () => setDrawOffered(true))
     socket.on('draw-declined', () => setDrawOffered(false))
 
+    // ── KEY FIX: when opponent joins, re-request full game-state ──
     socket.on('opponent-joined', (data) => {
-      setStatus(data?.status || 'ACTIVE')
       setOpponentLeft(false)
       if (data?.whitePlayer) setWhitePlayer(data.whitePlayer)
       if (data?.blackPlayer) setBlackPlayer(data.blackPlayer)
+      if (data?.status) setStatus(data.status)
+      // Re-emit join-game to get a fresh full game-state snapshot
+      socket.emit('join-game', { gameId })
     })
 
     socket.on('opponent-disconnected', () => setOpponentLeft(true))
 
     socket.on('move-error', (data) => {
       setMoveError(data.message)
-      setTimeout(() => setMoveError(''), 2000)
+      setTimeout(() => setMoveError(''), 2500)
     })
 
-    socket.on('error', (data) => {
-      console.error('Socket error:', data.message)
-    })
+    socket.on('error', (data) => console.error('Socket error:', data.message))
 
     return () => {
       socket.off('connect', emitJoin)
@@ -147,78 +216,39 @@ export default function GamePage() {
     }
   }, [socket, gameId])
 
-  // Drag and drop handler
+  // Drag drop
   const onPieceDrop = useCallback((args) => {
     let from, to, pieceObj
     if (args && typeof args === 'object' && 'sourceSquare' in args) {
-      from = args.sourceSquare
-      to = args.targetSquare
-      pieceObj = args.piece
+      from = args.sourceSquare; to = args.targetSquare; pieceObj = args.piece
     } else {
-      from = arguments[0]
-      to = arguments[1]
-      pieceObj = arguments[2]
+      from = arguments[0]; to = arguments[1]; pieceObj = arguments[2]
     }
-
     if (!to || from === to) return false
     if (!isMyTurn || gameOver || status !== 'ACTIVE') return false
-
     const pieceType = pieceObj?.pieceType || (typeof pieceObj === 'string' ? pieceObj : '')
     const isPawn = pieceType.toLowerCase().includes('p')
-    const isPromotion =
-      isPawn &&
-      ((myColor === 'w' && to[1] === '8') || (myColor === 'b' && to[1] === '1'))
-
-    socket.emit('make-move', {
-      gameId,
-      from,
-      to,
-      promotion: isPromotion ? 'q' : undefined,
-    })
+    const isPromotion = isPawn && ((myColor === 'w' && to[1] === '8') || (myColor === 'b' && to[1] === '1'))
+    socket.emit('make-move', { gameId, from, to, promotion: isPromotion ? 'q' : undefined })
     setSelectedSquare(null)
     return true
   }, [isMyTurn, gameOver, status, myColor, socket, gameId])
 
-  // Click to move handler
+  // Click to move
   const onSquareClick = useCallback((args) => {
-    if (!isMyTurn || gameOver || status !== 'ACTIVE') {
-      setSelectedSquare(null)
-      return
-    }
-
+    if (!isMyTurn || gameOver || status !== 'ACTIVE') { setSelectedSquare(null); return }
     const clickedSquare = args?.square || args
     const piece = args?.piece
     const pieceType = piece?.pieceType || (typeof piece === 'string' ? piece : '')
     const pieceColor = pieceType?.[0]
-
     if (!selectedSquare) {
-      if (pieceColor === myColor) {
-        setSelectedSquare(clickedSquare)
-      }
+      if (pieceColor === myColor) setSelectedSquare(clickedSquare)
       return
     }
-
-    if (selectedSquare === clickedSquare) {
-      setSelectedSquare(null)
-      return
-    }
-
-    if (pieceColor === myColor) {
-      setSelectedSquare(clickedSquare)
-      return
-    }
-
-    const isPromotion =
-      (myColor === 'w' && clickedSquare[1] === '8') ||
-      (myColor === 'b' && clickedSquare[1] === '1')
-
-    socket.emit('make-move', {
-      gameId,
-      from: selectedSquare,
-      to: clickedSquare,
-      promotion: isPromotion ? 'q' : undefined,
-    })
-
+    if (selectedSquare === clickedSquare) { setSelectedSquare(null); return }
+    if (pieceColor === myColor) { setSelectedSquare(clickedSquare); return }
+    const isPromotion = (myColor === 'w' && clickedSquare[1] === '8') || (myColor === 'b' && clickedSquare[1] === '1')
+    socket.emit('make-move', { gameId, from: selectedSquare, to: clickedSquare, promotion: isPromotion ? 'q' : undefined })
     setSelectedSquare(null)
   }, [selectedSquare, isMyTurn, gameOver, status, myColor, socket, gameId])
 
@@ -226,129 +256,174 @@ export default function GamePage() {
     if (!isMyTurn || gameOver || status !== 'ACTIVE') return false
     const piece = args?.piece
     const pieceType = piece?.pieceType || (typeof piece === 'string' ? piece : '')
-    const pieceColor = pieceType?.[0]
-    return pieceColor === myColor
+    return pieceType?.[0] === myColor
   }, [isMyTurn, gameOver, status, myColor])
 
   const handleResign = () => {
-    if (window.confirm('Are you sure you want to resign?')) {
-      socket.emit('resign', { gameId })
-    }
+    if (window.confirm('Are you sure you want to resign?')) socket.emit('resign', { gameId })
   }
-
   const handleOfferDraw = () => socket.emit('offer-draw', { gameId })
   const handleAcceptDraw = () => { socket.emit('accept-draw', { gameId }); setDrawOffered(false) }
   const handleDeclineDraw = () => { socket.emit('decline-draw', { gameId }); setDrawOffered(false) }
-
   const handleCopyId = () => {
     navigator.clipboard.writeText(gameId)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Board square highlights
   const customSquareStyles = {
-    ...(lastMove
-      ? {
-          [lastMove.from]: { backgroundColor: 'rgba(110, 231, 183, 0.2)' },
-          [lastMove.to]: { backgroundColor: 'rgba(110, 231, 183, 0.3)' },
-        }
-      : {}),
-    ...(selectedSquare
-      ? {
-          [selectedSquare]: { backgroundColor: 'rgba(110, 231, 183, 0.4)' },
-        }
-      : {}),
+    ...(lastMove ? {
+      [lastMove.from]: { backgroundColor: 'rgba(214,168,79,0.18)' },
+      [lastMove.to]: { backgroundColor: 'rgba(214,168,79,0.32)' },
+    } : {}),
+    ...(selectedSquare ? { [selectedSquare]: { backgroundColor: 'rgba(214,168,79,0.42)' } } : {}),
   }
 
-  // Result summary
   const getResultLabel = () => {
     if (!gameOver) return null
-    if (gameOver.result === 'draw') return { title: 'Draw', color: 'text-[#A1A1AA]', sub: gameOver.resultReason?.replace(/_/g, ' ') }
+    if (gameOver.result === 'draw') return { title: 'Draw', color: T.draw, sub: gameOver.resultReason?.replace(/_/g, ' ') }
     const iWon = (gameOver.result === 'white' && myColor === 'w') || (gameOver.result === 'black' && myColor === 'b')
-    return {
-      title: iWon ? 'Victory' : 'Defeat',
-      color: iWon ? 'text-[#6EE7B7]' : 'text-[#F87171]',
-      sub: gameOver.resultReason?.replace(/_/g, ' '),
-    }
+    return { title: iWon ? 'Victory' : 'Defeat', color: iWon ? T.win : T.loss, sub: gameOver.resultReason?.replace(/_/g, ' ') }
   }
-
   const resultLabel = getResultLabel()
 
-  // Minimal Clock component
-  const Clock = ({ time, label, active, isMe }) => (
-    <div className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
-      active && status === 'ACTIVE' && !gameOver
-        ? 'bg-[#1B1B1E] text-[#F5F5F7] border-[#6EE7B7]/40 shadow-sm'
-        : 'bg-[#111113] text-[#A1A1AA] border-[#27272A]'
-    }`}>
-      <div className="flex items-center gap-2">
-        {active && status === 'ACTIVE' && !gameOver && (
-          <span className="w-1.5 h-1.5 rounded-full bg-[#6EE7B7] animate-pulse" />
-        )}
-        <span className={`text-xs font-medium ${active && status === 'ACTIVE' ? 'text-[#F5F5F7]' : 'text-[#71717A]'}`}>
-          {label} {isMe && '(You)'}
-        </span>
-      </div>
-      <span className="text-base font-mono font-bold tracking-wider tabular-nums text-[#F5F5F7]">{fmt(time)}</span>
-    </div>
-  )
+  const opponentLabel = myColor === 'w' ? blackPlayer : whitePlayer
+  const myLabel = myColor === 'w' ? whitePlayer : blackPlayer
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-[#F5F5F7] flex flex-col antialiased selection:bg-[#6EE7B7]/20 selection:text-[#6EE7B7]">
-      
+    <div
+      style={{
+        minHeight: '100vh', width: '100%',
+        color: T.textPrimary,
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif',
+        WebkitFontSmoothing: 'antialiased',
+        backgroundImage: `linear-gradient(rgba(13,10,7,0.78), rgba(13,10,7,0.92)), url('https://images.pexels.com/photos/19327137/pexels-photo-19327137.jpeg')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center top',
+        backgroundAttachment: 'fixed',
+        display: 'flex', flexDirection: 'column',
+      }}
+    >
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
       {/* Reconnecting banner */}
       {reconnecting && (
-        <div className="bg-[#111113] border-b border-[#27272A] text-xs text-[#FBBF24] text-center py-1.5 flex items-center justify-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#FBBF24] animate-ping" />
-          <span>Reconnecting to game room...</span>
+        <div style={{
+          background: 'rgba(232,184,75,0.12)', borderBottom: `1px solid rgba(232,184,75,0.25)`,
+          color: T.warning, fontSize: 12, textAlign: 'center',
+          padding: '7px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: T.warning, display: 'inline-block', animation: 'pulse 1.2s infinite' }} />
+          Reconnecting to game room…
         </div>
       )}
 
       {/* Header */}
-      <header className="border-b border-[#27272A] bg-[#0A0A0B]/80 backdrop-blur-md px-5 sm:px-8 h-14 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/dashboard')}>
-          <span className="text-lg">♟</span>
-          <span className="font-semibold text-sm tracking-tight text-[#F5F5F7]">Real-Time Chess</span>
+      <header style={{
+        borderBottom: `1px solid ${T.borderSubtle}`,
+        background: 'rgba(13,10,7,0.65)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        padding: '0 32px', height: 68,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexShrink: 0,
+      }}>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+          onClick={() => navigate('/dashboard')}
+        >
+          <ArrowLeft size={15} color={T.textMuted} />
+          <span style={{ fontSize: 20, color: T.accent }}>♟</span>
+          <span style={{ fontWeight: 600, fontSize: 14, letterSpacing: '0.18em', color: T.textPrimary, textTransform: 'uppercase' }}>CHECKMATE</span>
         </div>
-        <div className="flex items-center gap-3 text-xs">
-          <span className="text-[#71717A] font-mono">#{gameId}</span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ fontSize: 12, fontFamily: 'monospace', color: T.textMuted }}>#{gameId}</span>
           {status === 'ACTIVE' && !gameOver && (
-            <span className="flex items-center gap-1.5 text-[#6EE7B7]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#6EE7B7] animate-pulse" />
-              <span>Live</span>
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.win }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: T.win, display: 'inline-block', animation: 'pulse 1.4s infinite' }} />
+              Live
+            </div>
           )}
         </div>
       </header>
 
-      {/* ── Waiting State ── */}
+      {/* ── WAITING STATE ── */}
       {status === 'WAITING' && (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="bg-[#111113] border border-[#27272A] rounded-xl p-8 max-w-sm w-full text-center space-y-5 shadow-xl">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-[#F5F5F7]">Waiting for opponent</h2>
-              <p className="text-xs text-[#71717A]">Share the game code to begin</p>
-            </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div
+            style={{
+              background: T.surfaceMain,
+              border: `1px solid ${T.border}`,
+              borderRadius: 20,
+              padding: '36px 40px',
+              maxWidth: 420, width: '100%',
+              textAlign: 'center',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.55)',
+              animation: 'fadeIn 0.4s ease-out',
+            }}
+          >
+            {/* Animated chess icon */}
+            <div style={{ fontSize: 40, marginBottom: 20, opacity: 0.9 }}>♞</div>
 
-            <div className="bg-[#0A0A0B] border border-[#27272A] rounded-lg p-3 flex items-center justify-between">
-              <span className="text-xl font-mono font-bold tracking-widest text-[#F5F5F7]">{gameId}</span>
+            <h2 style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary, margin: '0 0 6px' }}>
+              Waiting for opponent
+            </h2>
+            <p style={{ fontSize: 13, color: T.textMuted, margin: '0 0 28px' }}>Share the game code to begin</p>
+
+            {/* Game ID display */}
+            <div
+              style={{
+                background: 'rgba(13,10,7,0.7)',
+                border: `1px solid ${T.border}`,
+                borderRadius: 14,
+                padding: '14px 20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: 20,
+              }}
+            >
+              <span style={{ fontSize: 24, fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.1em', color: T.textPrimary }}>
+                {gameId}
+              </span>
               <button
                 onClick={handleCopyId}
-                className="bg-[#1B1B1E] hover:bg-[#27272A] text-xs text-[#F5F5F7] border border-[#27272A] rounded-md px-3 py-1.5 transition"
+                style={{
+                  background: copied ? 'rgba(112,198,154,0.15)' : T.surfaceSub,
+                  border: `1px solid ${copied ? T.win : T.border}`,
+                  borderRadius: 8, padding: '7px 14px',
+                  color: copied ? T.win : T.textSecondary,
+                  fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  transition: 'all 0.2s',
+                }}
               >
+                {copied ? <Check size={13} /> : <Copy size={13} />}
                 {copied ? 'Copied' : 'Copy'}
               </button>
             </div>
 
-            <div className="flex items-center justify-center gap-2 text-xs text-[#A1A1AA]">
-              <span className="w-2 h-2 rounded-full bg-[#6EE7B7] animate-pulse" />
-              <span>Room is active and listening...</span>
+            {/* Pulse status */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 28 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: T.accent, display: 'inline-block', animation: 'pulse 1.4s infinite' }} />
+              <span style={{ fontSize: 13, color: T.textSecondary }}>Room is active and listening…</span>
             </div>
 
             <button
               onClick={() => navigate('/dashboard')}
-              className="w-full text-xs text-[#71717A] hover:text-[#F5F5F7] transition py-2"
+              style={{
+                background: 'transparent', border: `1px solid ${T.border}`,
+                borderRadius: 10, padding: '9px 20px',
+                color: T.textMuted, fontSize: 13, cursor: 'pointer',
+                transition: 'all 0.15s', width: '100%',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = T.textPrimary; e.currentTarget.style.borderColor = T.accent }}
+              onMouseLeave={e => { e.currentTarget.style.color = T.textMuted; e.currentTarget.style.borderColor = T.border }}
             >
               Cancel Match
             </button>
@@ -356,94 +431,144 @@ export default function GamePage() {
         </div>
       )}
 
-      {/* ── Active Game Layout ── */}
+      {/* ── ACTIVE GAME ── */}
       {status !== 'WAITING' && (
-        <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
-          <div className="flex flex-col lg:flex-row gap-6 w-full max-w-5xl items-center lg:items-start justify-center">
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 32px' }}>
+          <div style={{
+            display: 'flex', flexDirection: 'row', gap: 28,
+            width: '100%', maxWidth: 960,
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            {/* Board Column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, width: '100%', maxWidth: 480 }}>
 
-            {/* Board Column (Hero) */}
-            <div className="flex flex-col gap-2.5 w-full max-w-[460px]">
-              
-              {/* Opponent Clock (Top) */}
-              <Clock
+              {/* Opponent clock */}
+              <ClockBar
                 time={myColor === 'w' ? blackTime : whiteTime}
-                label={myColor === 'w' ? blackPlayer : whitePlayer}
+                label={opponentLabel || 'Opponent'}
                 active={currentTurn !== myColor}
                 isMe={false}
               />
 
-              {/* The Chessboard */}
-              <div className="relative aspect-square bg-[#111113] border border-[#27272A] rounded-xl overflow-hidden shadow-2xl p-2 flex items-center justify-center">
+              {/* Board wrapper */}
+              <div style={{
+                position: 'relative',
+                background: T.surfaceSub,
+                border: `1px solid ${T.border}`,
+                borderRadius: 16,
+                padding: 10,
+                boxShadow: '0 16px 60px rgba(0,0,0,0.5)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+              }}>
                 <Chessboard
                   options={{
-                    id: "main-board",
+                    id: 'main-board',
                     position: fen,
-                    onPieceDrop: onPieceDrop,
-                    onSquareClick: onSquareClick,
-                    canDragPiece: canDragPiece,
+                    onPieceDrop,
+                    onSquareClick,
+                    canDragPiece,
                     allowDragging: isMyTurn && status === 'ACTIVE' && !gameOver,
                     boardOrientation: myColor === 'b' ? 'black' : 'white',
                     squareStyles: customSquareStyles,
-                    boardStyle: { borderRadius: '6px', width: '100%', maxWidth: '440px' },
-                    darkSquareStyle: { backgroundColor: '#27272A' },
-                    lightSquareStyle: { backgroundColor: '#E4E4E7' },
+                    boardStyle: { borderRadius: 8, width: '100%' },
+                    darkSquareStyle: { backgroundColor: '#3A2E20' },
+                    lightSquareStyle: { backgroundColor: '#C8B89A' },
                   }}
                 />
-
-                {/* Move Error Toast */}
                 {moveError && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-[#F87171] text-[#0A0A0B] text-xs font-semibold px-3 py-1.5 rounded shadow-lg z-20">
+                  <div style={{
+                    position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)',
+                    background: T.loss, color: '#1A0A0A',
+                    fontSize: 12, fontWeight: 600, padding: '6px 14px',
+                    borderRadius: 8, zIndex: 20, whiteSpace: 'nowrap',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                    animation: 'fadeIn 0.2s ease-out',
+                  }}>
                     {moveError}
                   </div>
                 )}
               </div>
 
-              {/* Player Clock (Bottom) */}
-              <Clock
+              {/* My clock */}
+              <ClockBar
                 time={myColor === 'w' ? whiteTime : blackTime}
-                label={myColor === 'w' ? whitePlayer : blackPlayer}
+                label={myLabel || user?.username || 'You'}
                 active={currentTurn === myColor}
                 isMe={true}
               />
             </div>
 
-            {/* Sidebar / Move History */}
-            <div className="flex flex-col gap-3 w-full max-w-[460px] lg:max-w-64 h-[440px] lg:h-[530px]">
-              
-              {/* Turn Banner */}
+            {/* Sidebar */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 240, minWidth: 200, alignSelf: 'stretch' }}>
+
+              {/* Turn / status banner */}
               {!gameOver && status === 'ACTIVE' && (
-                <div className={`text-xs font-medium py-2 px-3 rounded-lg border text-center transition ${
-                  isMyTurn
-                    ? 'bg-[#1B1B1E] text-[#6EE7B7] border-[#6EE7B7]/30'
-                    : 'bg-[#111113] text-[#71717A] border-[#27272A]'
-                }`}>
-                  {isMyTurn ? 'Your turn to move' : "Waiting for opponent..."}
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    border: `1px solid ${isMyTurn ? T.accent : T.border}`,
+                    background: isMyTurn ? 'rgba(214,168,79,0.08)' : T.surfaceSub,
+                    fontSize: 13, fontWeight: 600,
+                    color: isMyTurn ? T.accent : T.textMuted,
+                    transition: 'all 0.3s',
+                  }}
+                >
+                  {isMyTurn ? '⚡ Your turn' : 'Waiting for opponent…'}
                 </div>
               )}
 
-              {/* Opponent Disconnected Indicator */}
+              {/* Opponent disconnected */}
               {opponentLeft && (
-                <div className="text-xs text-[#FBBF24] bg-[#FBBF24]/10 border border-[#FBBF24]/20 rounded-lg p-2 text-center">
-                  Opponent disconnected
+                <div style={{
+                  background: 'rgba(232,184,75,0.08)',
+                  border: `1px solid rgba(232,184,75,0.25)`,
+                  borderRadius: 12, padding: '10px 14px',
+                  fontSize: 12, color: T.warning, textAlign: 'center',
+                }}>
+                  ⚠ Opponent disconnected
                 </div>
               )}
 
-              {/* Move History Table */}
-              <div className="bg-[#111113] border border-[#27272A] rounded-xl flex-1 flex flex-col min-h-0 overflow-hidden">
-                <div className="px-3.5 py-2.5 border-b border-[#1D1D20]">
-                  <div className="text-xs font-semibold text-[#71717A] uppercase tracking-wider">Moves</div>
+              {/* Move history */}
+              <div style={{
+                background: T.surfaceMain,
+                border: `1px solid ${T.border}`,
+                borderRadius: 16,
+                flex: 1, display: 'flex', flexDirection: 'column',
+                overflow: 'hidden', minHeight: 0,
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+              }}>
+                <div style={{
+                  padding: '12px 16px',
+                  borderBottom: `1px solid ${T.borderSubtle}`,
+                  fontSize: 11, fontWeight: 600, color: T.textMuted,
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                }}>
+                  Moves
                 </div>
-                <div className="overflow-y-auto flex-1 p-2">
+                <div style={{ overflowY: 'auto', flex: 1, padding: '6px 8px' }}>
                   {movePairs.length === 0 ? (
-                    <div className="text-center py-8 text-xs text-[#71717A]">No moves yet</div>
+                    <div style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: T.textMuted }}>
+                      No moves yet
+                    </div>
                   ) : (
-                    <table className="w-full text-xs">
+                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                       <tbody>
                         {movePairs.map((pair, i) => (
-                          <tr key={i} className="hover:bg-[#1B1B1E] rounded">
-                            <td className="text-[#71717A] px-2 py-0.5 w-6 font-mono">{i + 1}.</td>
-                            <td className="text-[#F5F5F7] font-mono px-2 py-0.5 w-20">{pair.white}</td>
-                            <td className="text-[#A1A1AA] font-mono px-2 py-0.5">{pair.black || ''}</td>
+                          <tr
+                            key={i}
+                            style={{
+                              borderRadius: 6,
+                              background: i % 2 === 0 ? 'transparent' : 'rgba(58,46,32,0.2)',
+                            }}
+                          >
+                            <td style={{ padding: '4px 8px', color: T.textMuted, fontFamily: 'monospace', width: 28 }}>{i + 1}.</td>
+                            <td style={{ padding: '4px 8px', color: T.textPrimary, fontFamily: 'monospace', width: 64, fontWeight: 600 }}>{pair.white}</td>
+                            <td style={{ padding: '4px 8px', color: T.textSecondary, fontFamily: 'monospace' }}>{pair.black || ''}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -452,20 +577,40 @@ export default function GamePage() {
                 </div>
               </div>
 
-              {/* Draw Offer Prompt */}
+              {/* Draw offer prompt */}
               {drawOffered && (
-                <div className="bg-[#111113] border border-[#27272A] rounded-xl p-3 text-center space-y-2">
-                  <div className="text-xs text-[#A1A1AA]">Draw offered by opponent</div>
-                  <div className="flex gap-2">
+                <div style={{
+                  background: T.surfaceMain,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 14, padding: '14px 16px',
+                  textAlign: 'center',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                }}>
+                  <p style={{ fontSize: 12, color: T.textSecondary, margin: '0 0 12px' }}>Draw offered by opponent</p>
+                  <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={handleAcceptDraw}
-                      className="flex-1 bg-[#F5F5F7] hover:bg-white text-[#0A0A0B] text-xs font-medium py-1.5 rounded-lg transition"
+                      style={{
+                        flex: 1, height: 36, background: T.accent, color: '#1A1106',
+                        border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = T.accentHover}
+                      onMouseLeave={e => e.currentTarget.style.background = T.accent}
                     >
                       Accept
                     </button>
                     <button
                       onClick={handleDeclineDraw}
-                      className="flex-1 border border-[#27272A] hover:bg-[#1B1B1E] text-xs text-[#A1A1AA] py-1.5 rounded-lg transition"
+                      style={{
+                        flex: 1, height: 36, background: 'transparent',
+                        border: `1px solid ${T.border}`, borderRadius: 8,
+                        fontSize: 12, color: T.textSecondary, cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = T.surfaceSub; e.currentTarget.style.color = T.textPrimary }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = T.textSecondary }}
                     >
                       Decline
                     </button>
@@ -473,18 +618,38 @@ export default function GamePage() {
                 </div>
               )}
 
-              {/* Action Buttons */}
+              {/* Action buttons */}
               {!gameOver && status === 'ACTIVE' && (
-                <div className="flex gap-2">
+                <div style={{ display: 'flex', gap: 8 }}>
                   <button
                     onClick={handleOfferDraw}
-                    className="flex-1 bg-[#111113] hover:bg-[#1B1B1E] border border-[#27272A] text-xs text-[#A1A1AA] hover:text-[#F5F5F7] py-2 rounded-lg transition"
+                    style={{
+                      flex: 1, height: 40,
+                      background: 'transparent',
+                      border: `1px solid ${T.border}`,
+                      borderRadius: 10, fontSize: 13,
+                      color: T.textSecondary, cursor: 'pointer',
+                      fontWeight: 500,
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.surfaceSub; e.currentTarget.style.color = T.textPrimary; e.currentTarget.style.borderColor = T.accent }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = T.textSecondary; e.currentTarget.style.borderColor = T.border }}
                   >
                     Draw
                   </button>
                   <button
                     onClick={handleResign}
-                    className="flex-1 bg-[#111113] hover:bg-[#1B1B1E] border border-[#27272A] text-xs text-[#F87171] hover:text-[#F87171] py-2 rounded-lg transition"
+                    style={{
+                      flex: 1, height: 40,
+                      background: 'transparent',
+                      border: `1px solid rgba(229,115,115,0.35)`,
+                      borderRadius: 10, fontSize: 13,
+                      color: T.loss, cursor: 'pointer',
+                      fontWeight: 500,
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(229,115,115,0.08)'; e.currentTarget.style.borderColor = T.loss }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(229,115,115,0.35)' }}
                   >
                     Resign
                   </button>
@@ -494,37 +659,68 @@ export default function GamePage() {
               {gameOver && (
                 <button
                   onClick={() => navigate('/dashboard')}
-                  className="w-full bg-[#F5F5F7] hover:bg-white text-[#0A0A0B] text-xs font-medium py-2.5 rounded-lg transition"
+                  style={{
+                    height: 42, background: T.accent, color: '#1A1106',
+                    border: 'none', borderRadius: 10, fontSize: 13,
+                    fontWeight: 600, cursor: 'pointer',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = T.accentHover}
+                  onMouseLeave={e => e.currentTarget.style.background = T.accent}
                 >
                   Back to Dashboard
                 </button>
               )}
-
             </div>
           </div>
         </div>
       )}
 
       {/* ── Game Over Modal ── */}
-      {gameOver && resultLabel && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#111113] border border-[#27272A] rounded-xl p-6 text-center max-w-xs w-full shadow-2xl space-y-4">
-            <div>
-              <h2 className={`text-xl font-semibold ${resultLabel.color}`}>{resultLabel.title}</h2>
-              <p className="text-xs text-[#71717A] capitalize mt-1">
-                {resultLabel.sub || 'Game completed'}
-              </p>
+      {showGameOver && resultLabel && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(13,10,7,0.8)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 50, padding: 16,
+        }}>
+          <div style={{
+            background: T.surfaceMain,
+            border: `1px solid ${T.border}`,
+            borderRadius: 20, padding: '36px 40px',
+            maxWidth: 340, width: '100%',
+            textAlign: 'center',
+            boxShadow: '0 32px 80px rgba(0,0,0,0.6)',
+            animation: 'fadeIn 0.35s ease-out',
+          }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>
+              {resultLabel.title === 'Victory' ? '🏆' : resultLabel.title === 'Draw' ? '🤝' : '♟'}
             </div>
+            <h2 style={{ fontSize: 26, fontWeight: 600, color: resultLabel.color, margin: '0 0 8px' }}>
+              {resultLabel.title}
+            </h2>
+            <p style={{ fontSize: 13, color: T.textMuted, margin: '0 0 28px', textTransform: 'capitalize' }}>
+              {resultLabel.sub || 'Game completed'}
+            </p>
             <button
               onClick={() => navigate('/dashboard')}
-              className="w-full bg-[#F5F5F7] hover:bg-white text-[#0A0A0B] text-xs font-medium py-2 rounded-lg transition"
+              style={{
+                width: '100%', height: 44,
+                background: T.accent, color: '#1A1106',
+                border: 'none', borderRadius: 12,
+                fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = T.accentHover}
+              onMouseLeave={e => e.currentTarget.style.background = T.accent}
             >
               Back to Dashboard
             </button>
           </div>
         </div>
       )}
-
     </div>
   )
 }

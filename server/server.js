@@ -3,7 +3,6 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const connectDB = require("./src/config/db");
-
 const initSocket = require("./src/socket/index");
 
 const app = express();
