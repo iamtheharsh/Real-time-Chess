@@ -146,10 +146,12 @@ export default function DashboardPage() {
     return () => clearInterval(pollRef.current)
   }, [createdGameId, waitingStatus, navigate])
 
-  const handleCreateGame = async () => {
+  const [selectedTimeControl, setSelectedTimeControl] = useState(10)
+
+  const handleCreateGame = async (timeMinutes = selectedTimeControl) => {
     setCreating(true)
     try {
-      const res = await createGame()
+      const res = await createGame(timeMinutes)
       setCreatedGameId(res.data.gameId)
       setModal('create')
       setWaitingStatus('waiting')
@@ -416,7 +418,7 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
             {/* Create Game */}
             <button
-              onClick={handleCreateGame}
+              onClick={() => setModal('select-time')}
               disabled={creating}
               style={{
                 height: 44,
@@ -438,10 +440,7 @@ export default function DashboardPage() {
               onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)' }}
               onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
             >
-              {creating
-                ? <span style={{ width: 16, height: 16, border: '2px solid #1A1106', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
-                : <Plus size={16} />
-              }
+              <Plus size={16} />
               Create Game
             </button>
 
@@ -603,6 +602,64 @@ export default function DashboardPage() {
 
       {/* ── Spin Keyframe ── */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* ── Select Time Control Modal ── */}
+      {modal === 'select-time' && (
+        <div style={backdropStyle} onClick={handleCloseModal}>
+          <div style={{ ...modalCardStyle, maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <h3 style={{ color: T.textPrimary, fontSize: 18, fontWeight: 600, margin: '0 0 4px' }}>Select Time Control</h3>
+                <p style={{ color: T.textMuted, fontSize: 12, margin: 0 }}>Choose match clock format (no increment per move)</p>
+              </div>
+              <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textMuted, fontSize: 20, lineHeight: 1 }}>×</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+              {[
+                { min: 3, label: '3 Minutes', tag: '⚡ Bullet / Fast Blitz', desc: '3:00 per player • 0s add-on' },
+                { min: 5, label: '5 Minutes', tag: '⏱ Standard Blitz', desc: '5:00 per player • 0s add-on' },
+                { min: 10, label: '10 Minutes', tag: '⌛ Rapid', desc: '10:00 per player • 0s add-on' },
+              ].map((opt) => (
+                <button
+                  key={opt.min}
+                  onClick={() => handleCreateGame(opt.min)}
+                  disabled={creating}
+                  style={{
+                    background: T.surfaceSub,
+                    border: `1px solid ${selectedTimeControl === opt.min ? T.accent : T.border}`,
+                    borderRadius: 14, padding: '14px 18px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    cursor: creating ? 'not-allowed' : 'pointer',
+                    textAlign: 'left', transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.background = 'rgba(214,168,79,0.08)' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.surfaceSub }}
+                >
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary, marginBottom: 2 }}>{opt.label}</div>
+                    <div style={{ fontSize: 12, color: T.textMuted }}>{opt.desc}</div>
+                  </div>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, color: T.accent,
+                    background: 'rgba(214,168,79,0.12)', border: '1px solid rgba(214,168,79,0.25)',
+                    padding: '4px 10px', borderRadius: 8,
+                  }}>
+                    {opt.tag}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {creating && (
+              <div style={{ textAlign: 'center', fontSize: 13, color: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={{ width: 14, height: 14, border: `2px solid ${T.accent}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                Generating game room…
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Create Game Modal ── */}
       {modal === 'create' && (

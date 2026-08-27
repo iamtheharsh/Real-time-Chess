@@ -8,13 +8,23 @@ const Game = require("../models/Game");
 // -------------------------------------------------------------------
 const createGame = async (req, res) => {
   try {
-    // Generate a short, unique, human-shareable game ID (e.g. "V1StGXR8")
+    const { timeControl } = req.body; // timeControl in minutes e.g. 3, 5, 10
     const gameId = nanoid(8);
+
+    // Map timeControl minutes to seconds/ms with NO increment (0s)
+    let initialTimeSeconds = 600; // default 10 min
+    if (timeControl === 3) initialTimeSeconds = 180;
+    else if (timeControl === 5) initialTimeSeconds = 300;
+    else if (timeControl === 10) initialTimeSeconds = 600;
 
     const game = await Game.create({
       gameId,
-      whitePlayer: req.user._id, // creator always plays white
+      whitePlayer: req.user._id,
       status: "WAITING",
+      initialTime: initialTimeSeconds,
+      increment: 0, // No time added on every move
+      whiteTime: initialTimeSeconds * 1000,
+      blackTime: initialTimeSeconds * 1000,
     });
 
     res.status(201).json({

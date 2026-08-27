@@ -10,7 +10,7 @@ A real-time 1v1 online chess website built using Node.js, Express, React, MongoD
 
 - **Play Live with Friends** — Create a game room, copy the unique 8-character code, and share it with a friend to play live.
 - **Fair & Safe Moves** — Moves are checked on the server using `chess.js`. Players cannot make illegal moves or cheat.
-- **Synchronized Timer** — Each player gets 10 minutes plus 10 seconds bonus per move. Clocks are controlled by the server.
+- **Custom Match Timers** — Choose between 3 Minutes (Bullet), 5 Minutes (Blitz), or 10 Minutes (Rapid) without time add-on per move. Clocks are controlled and kept in sync by the server.
 - **In-Game Live Chat** — Talk with your opponent while playing. Chat messages are live and disappear when the game finishes (nothing saved in database).
 - **Easy Board Controls** — Move pieces by dragging and dropping or clicking squares.
 - **Resign & Draw Options** — Surrender anytime or offer a draw to your opponent during the match.
