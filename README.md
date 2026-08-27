@@ -94,7 +94,7 @@ npm run dev            # app starts on http://localhost:5173
 - Browser remembers the token so you stay logged in.
 
 ### 2. Match Creation Flow
-- **Player A** clicks "Create Game" -> Server gives an 8-letter code (e.g. `X7K2M9P4`).
+- **Player A** clicks "Create Game" -> Chooses time format (3, 5, or 10 min) -> Server creates room & returns 8-letter code.
 - **Player B** enters code -> Both players enter the live match room automatically.
 
 ### 3. Real-Time Move Flow
@@ -117,7 +117,7 @@ npm run dev            # app starts on http://localhost:5173
 - [x] Create Game & Join via 8-letter code
 - [x] Real-time live moves via Socket.IO
 - [x] Server-side move validation (no cheating)
-- [x] 10+10 synchronized server timer
+- [x] Selectable match clocks (3 min Bullet, 5 min Blitz, 10 min Rapid - 0s increment)
 - [x] Ephemeral live in-game chat (not saved in database)
 - [x] Move history table (Algebraic notation e.g. `e4`, `Nf3`)
 - [x] Win detection (Checkmate, Timeout, Resignation)
