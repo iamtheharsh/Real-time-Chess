@@ -11,6 +11,7 @@ A premium, full-stack real-time 1v1 chess application built with the MERN stack 
 - **Real-time multiplayer** — Two players connect via a unique 8-character Game ID
 - **Server-authoritative moves** — `chess.js` on the backend validates every move; the client cannot cheat
 - **Synchronized clocks** — 10+10 timer (10 min + 10s increment) runs server-side, broadcast to both clients
+- **Ephemeral live chat** — Real-time in-game messaging between opponents with zero database overhead (disappears when match ends)
 - **Drag & drop + click-to-move** — Full piece interaction support
 - **Resign / Draw offer** — In-game controls with opponent prompts
 - **Game history & replay** — View all past games with move-by-move replay
@@ -46,7 +47,7 @@ Real time chess/
 │   │   │   ├── LoginPage.jsx
 │   │   │   ├── RegisterPage.jsx
 │   │   │   ├── DashboardPage.jsx   # Welcome, Recent Games, Stats
-│   │   │   ├── GamePage.jsx        # Live board, clocks, move history
+│   │   │   ├── GamePage.jsx        # Live board, clocks, move history & ephemeral chat
 │   │   │   ├── HistoryPage.jsx     # All past matches
 │   │   │   └── ReplayPage.jsx      # Move-by-move replay
 │   │   └── services/
@@ -58,7 +59,7 @@ Real time chess/
         ├── middleware/       # auth middleware (JWT verify)
         ├── models/          # User.js, Game.js
         ├── routes/          # auth.js, games.js
-        └── socket/          # index.js — all Socket.IO logic
+        └── socket/          # index.js — all Socket.IO logic (moves, clocks, chat)
 ```
 
 ---
@@ -101,14 +102,21 @@ npm run dev            # runs on http://localhost:5173
 5. **Move** → client emits `make-move` → server validates with `chess.js` → broadcasts `move-made` to room
 6. **Game End** → server detects checkmate/timeout/resign → emits `game-over`
 
-### Real-time Move Cycle
+### Real-time Move & Chat Cycle
 ```
+[MOVE CYCLE]
 Player 1 drags piece
   → emits make-move { from, to }
     → server validates (chess.js)
       → saves FEN to MongoDB
         → emits move-made { fen, whiteTime, blackTime } to room
           → Player 2 board updates instantly
+
+[EPHEMERAL CHAT CYCLE]
+Player 1 types message
+  → emits send-message { gameId, message }
+    → server relays via socket.to(gameId).emit('receive-message')
+      → Player 2 chat box updates instantly (never stored in DB)
 ```
 
 ---
@@ -120,6 +128,7 @@ Player 1 drags piece
 - [x] Real-time chess moves via Socket.IO
 - [x] Server-authoritative move validation
 - [x] 10+10 server-side synchronized clock
+- [x] Ephemeral live in-game chat (zero-persistence room relay)
 - [x] Move history (SAN notation)
 - [x] Checkmate / stalemate / timeout detection
 - [x] Resign & draw offer/accept/decline
