@@ -1,6 +1,6 @@
 # CHECKMATE ♟️
 
-A premium, full-stack real-time 1v1 chess application built with the MERN stack and Socket.IO.
+A real-time 1v1 online chess website built using Node.js, Express, React, MongoDB, and Socket.IO.
 
 ![Dashboard Preview](https://images.pexels.com/photos/19327137/pexels-photo-19327137.jpeg)
 
@@ -8,30 +8,30 @@ A premium, full-stack real-time 1v1 chess application built with the MERN stack 
 
 ## ✨ Features
 
-- **Real-time multiplayer** — Two players connect via a unique 8-character Game ID
-- **Server-authoritative moves** — `chess.js` on the backend validates every move; the client cannot cheat
-- **Synchronized clocks** — 10+10 timer (10 min + 10s increment) runs server-side, broadcast to both clients
-- **Ephemeral live chat** — Real-time in-game messaging between opponents with zero database overhead (disappears when match ends)
-- **Drag & drop + click-to-move** — Full piece interaction support
-- **Resign / Draw offer** — In-game controls with opponent prompts
-- **Game history & replay** — View all past games with move-by-move replay
-- **JWT Authentication** — Secure login/register with bcrypt password hashing
-- **Disconnect recovery** — Automatic socket reconnect with state restoration
-- **Premium dark UI** — Warm amber/gold glassmorphism aesthetic throughout
+- **Play Live with Friends** — Create a game room, copy the unique 8-character code, and share it with a friend to play live.
+- **Fair & Safe Moves** — Moves are checked on the server using `chess.js`. Players cannot make illegal moves or cheat.
+- **Synchronized Timer** — Each player gets 10 minutes plus 10 seconds bonus per move. Clocks are controlled by the server.
+- **In-Game Live Chat** — Talk with your opponent while playing. Chat messages are live and disappear when the game finishes (nothing saved in database).
+- **Easy Board Controls** — Move pieces by dragging and dropping or clicking squares.
+- **Resign & Draw Options** — Surrender anytime or offer a draw to your opponent during the match.
+- **Game History & Replay** — Look back at all your previous games and watch them move-by-move.
+- **Secure User Accounts** — Sign up and log in safely using encrypted passwords and JWT tokens.
+- **Auto Reconnect** — If your internet disconnects or you refresh the browser, you join back into your match instantly.
+- **Dark Gold Design** — Premium dark amber theme with smooth glassmorphism style.
 
 ---
 
 ## 🛠 Tech Stack
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React 18 (Vite) + Tailwind CSS + lucide-react |
-| **Backend** | Node.js + Express |
-| **Database** | MongoDB + Mongoose |
-| **Real-time** | Socket.IO |
-| **Auth** | JWT + bcryptjs |
-| **Chess Logic** | chess.js (server-side authority) |
-| **Chess Board** | react-chessboard |
+| Part | Technology Used | What It Does |
+|---|---|---|
+| **Frontend** | React 18 (Vite) | User interface and pages |
+| **Backend** | Node.js + Express | Server logic and API routes |
+| **Database** | MongoDB + Mongoose | Stores user accounts and game records |
+| **Real-time** | Socket.IO | Instant live communication between players |
+| **Auth** | JWT + bcryptjs | Secure login tokens and password hashing |
+| **Chess Rules** | chess.js | Checks if moves are legal and detects checkmate |
+| **Chess Board** | react-chessboard | Renders the interactive chess board |
 
 ---
 
@@ -39,27 +39,27 @@ A premium, full-stack real-time 1v1 chess application built with the MERN stack 
 
 ```
 Real time chess/
-├── client/                  # Vite + React frontend
+├── client/                  # Frontend (React + Vite)
 │   ├── src/
-│   │   ├── context/         # AuthContext (JWT session)
-│   │   ├── hooks/           # useSocket hook
+│   │   ├── context/         # AuthContext (stores logged-in user state)
+│   │   ├── hooks/           # useSocket (shared Socket.IO connection)
 │   │   ├── pages/
 │   │   │   ├── LoginPage.jsx
 │   │   │   ├── RegisterPage.jsx
-│   │   │   ├── DashboardPage.jsx   # Welcome, Recent Games, Stats
-│   │   │   ├── GamePage.jsx        # Live board, clocks, move history & ephemeral chat
-│   │   │   ├── HistoryPage.jsx     # All past matches
-│   │   │   └── ReplayPage.jsx      # Move-by-move replay
+│   │   │   ├── DashboardPage.jsx   # Main home screen after login
+│   │   │   ├── GamePage.jsx        # Live chess board, timers, moves & chat
+│   │   │   ├── HistoryPage.jsx     # Past matches list
+│   │   │   └── ReplayPage.jsx      # Move-by-move match player
 │   │   └── services/
-│   │       └── gameService.js      # REST API wrappers
+│   │       └── gameService.js      # REST API helper functions
 │   └── public/
-└── server/                  # Node + Express backend
+└── server/                  # Backend (Node.js + Express)
     └── src/
         ├── controllers/     # authController, gameController
-        ├── middleware/       # auth middleware (JWT verify)
-        ├── models/          # User.js, Game.js
-        ├── routes/          # auth.js, games.js
-        └── socket/          # index.js — all Socket.IO logic (moves, clocks, chat)
+        ├── middleware/       # Auth check middleware (JWT)
+        ├── models/          # User.js, Game.js (Database schemas)
+        ├── routes/          # API route definitions
+        └── socket/          # index.js (Socket.IO moves, timer & chat logic)
 ```
 
 ---
@@ -67,92 +67,81 @@ Real time chess/
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js v18+
-- MongoDB Atlas account (or local MongoDB)
+- Node.js installed on your computer
+- MongoDB database link (MongoDB Atlas or local)
 
-### Server Setup
+### 1. Backend Setup
 ```bash
 cd server
-cp .env.example .env   # fill in MONGODB_URI, JWT_SECRET, PORT
+cp .env.example .env   # add your MONGODB_URI, JWT_SECRET, PORT
 npm install
-npm run dev            # runs on http://localhost:3001
+npm run dev            # server starts on http://localhost:3001
 ```
 
-### Client Setup
+### 2. Frontend Setup
 ```bash
 cd client
 npm install
-npm run dev            # runs on http://localhost:5173
+npm run dev            # app starts on http://localhost:5173
 ```
 
 ---
 
-## 🔌 How It Works
+## 🔌 How It Works (Simple Explanation)
 
-### Authentication
-1. User registers/logs in → server returns a signed JWT
-2. JWT stored in `localStorage` → decoded via `AuthContext`
-3. All protected API calls include `Authorization: Bearer <token>`
+### 1. Login Flow
+- User enters email and password -> Server checks password -> Server sends back a secure token (JWT).
+- Browser remembers the token so you stay logged in.
 
-### Game Flow
-1. **Create Game** → REST `POST /api/games` → returns 8-char `gameId`, status `WAITING`
-2. **Join Game** → REST `POST /api/games/join` → server assigns `blackPlayer`, status → `ACTIVE`
-3. Both clients emit `join-game` socket event → placed in a Socket.IO room
-4. On `opponent-joined`, both clients re-request a fresh `game-state` (no refresh needed)
-5. **Move** → client emits `make-move` → server validates with `chess.js` → broadcasts `move-made` to room
-6. **Game End** → server detects checkmate/timeout/resign → emits `game-over`
+### 2. Match Creation Flow
+- **Player A** clicks "Create Game" -> Server gives an 8-letter code (e.g. `X7K2M9P4`).
+- **Player B** enters code -> Both players enter the live match room automatically.
 
-### Real-time Move & Chat Cycle
-```
-[MOVE CYCLE]
-Player 1 drags piece
-  → emits make-move { from, to }
-    → server validates (chess.js)
-      → saves FEN to MongoDB
-        → emits move-made { fen, whiteTime, blackTime } to room
-          → Player 2 board updates instantly
+### 3. Real-Time Move Flow
+- **Player A** moves a piece on screen.
+- Move is sent to the server via Socket.IO.
+- Server uses `chess.js` to confirm the move is legal.
+- Server updates the board position and timers in MongoDB.
+- Server sends the new position to **Player B**'s screen instantly.
 
-[EPHEMERAL CHAT CYCLE]
-Player 1 types message
-  → emits send-message { gameId, message }
-    → server relays via socket.to(gameId).emit('receive-message')
-      → Player 2 chat box updates instantly (never stored in DB)
-```
+### 4. Live Chat Flow
+- **Player A** types a message -> Message is sent via Socket directly to **Player B**.
+- Message appears in the chat box on screen.
+- Nothing is stored in MongoDB, so messages vanish when the match ends.
 
 ---
 
-## ✅ Implemented Features
+## ✅ Completed Features Checklist
 
-- [x] JWT Authentication (register / login)
-- [x] Create & join game by ID
-- [x] Real-time chess moves via Socket.IO
-- [x] Server-authoritative move validation
-- [x] 10+10 server-side synchronized clock
-- [x] Ephemeral live in-game chat (zero-persistence room relay)
-- [x] Move history (SAN notation)
-- [x] Checkmate / stalemate / timeout detection
-- [x] Resign & draw offer/accept/decline
-- [x] Disconnect & reconnect recovery
-- [x] Game history page
-- [x] Move-by-move game replay
-- [x] Premium dark UI (amber/gold glassmorphism)
-- [x] Drag-and-drop + click-to-move
-- [x] Responsive layout
+- [x] User Registration & Login (JWT Auth)
+- [x] Create Game & Join via 8-letter code
+- [x] Real-time live moves via Socket.IO
+- [x] Server-side move validation (no cheating)
+- [x] 10+10 synchronized server timer
+- [x] Ephemeral live in-game chat (not saved in database)
+- [x] Move history table (Algebraic notation e.g. `e4`, `Nf3`)
+- [x] Win detection (Checkmate, Timeout, Resignation)
+- [x] Draw options (Stalemate, Agreement, 3-fold repetition)
+- [x] Automatic reconnect on page refresh
+- [x] Match history page
+- [x] Move-by-move match replay
+- [x] Dark gold glassmorphism UI
+- [x] Drag & drop and click-to-move support
 
 ---
 
-## 🎨 Design System
+## 🎨 Color Palette & Design System
 
-The UI uses a consistent warm amber/gold dark theme across all pages:
+The app uses a warm dark gold theme across all screens:
 
-| Token | Value | Usage |
+| Name | Hex / RGBA Code | Used For |
 |---|---|---|
-| Background overlay | `#0D0A07` | Page background |
-| Main surface | `rgba(18,14,10,0.90)` | Cards & panels |
-| Border | `#3A2E20` | All borders |
-| Primary text | `#F5F0E8` | Headings |
-| Secondary text | `#B8AEA0` | Labels |
-| Accent / Gold | `#D6A84F` | CTAs, highlights |
-| Win | `#70C69A` | Win result |
-| Loss | `#E57373` | Loss result |
-| Draw | `#B8AEA0` | Draw result |
+| Background | `#0D0A07` | Deep dark background |
+| Cards & Panels | `rgba(18,14,10,0.90)` | Glass containers |
+| Borders | `#3A2E20` | Subtle warm borders |
+| Primary Text | `#F5F0E8` | Headings and titles |
+| Secondary Text | `#B8AEA0` | Subtitles and labels |
+| Accent Gold | `#D6A84F` | Buttons and highlights |
+| Win Color | `#70C69A` | Soft green for victories |
+| Loss Color | `#E57373` | Soft red for defeats |
+| Draw Color | `#B8AEA0` | Muted gray for draws |
