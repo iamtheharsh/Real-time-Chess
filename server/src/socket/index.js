@@ -378,6 +378,29 @@ const initSocket = (httpServer) => {
     });
 
     // ──────────────────────────────────────────────────────────────
+    // EVENT: send-message (in-game chat)
+    //
+    // Forwards the chat message to the opponent ONLY.
+    // Intentionally NOT saved to MongoDB — messages are ephemeral
+    // and disappear when the game ends or the page is closed.
+    // This is by design: no privacy concerns, no storage overhead.
+    // ──────────────────────────────────────────────────────────────
+    socket.on("send-message", ({ gameId, message }) => {
+      // Basic safety: ignore empty or excessively long messages
+      if (!message || typeof message !== "string") return;
+      const trimmed = message.trim().slice(0, 200); // max 200 chars
+      if (!trimmed) return;
+
+      // Forward to opponent only (not back to sender)
+      // socket.userId is set by the JWT middleware on connection
+      socket.to(gameId).emit("receive-message", {
+        from: socket.userId,
+        message: trimmed,
+        timestamp: Date.now(),
+      });
+    });
+
+    // ──────────────────────────────────────────────────────────────
     // EVENT: disconnect
     // Fires automatically when a player's connection drops
     // (tab closed, internet lost, etc.)

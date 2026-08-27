@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Chessboard } from 'react-chessboard'
 import { useAuth } from '../context/AuthContext'
 import { useSocket } from '../hooks/useSocket'
-import { ArrowLeft, Copy, Check } from 'lucide-react'
+import { ArrowLeft, Copy, Check, Send } from 'lucide-react'
 
 // ── Design Tokens ──────────────────────────────────────────────────────────────
 const T = {
@@ -105,6 +105,11 @@ export default function GamePage() {
   const [copied, setCopied] = useState(false)
   const [showGameOver, setShowGameOver] = useState(false)
 
+  // ── Chat state (ephemeral — never saved to DB) ──
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatInput, setChatInput] = useState('')
+  const chatBottomRef = useRef(null)
+
   const currentTurn = fen === 'start' ? 'w' : fen.split(' ')[1]
   const isMyTurn = myColor === currentTurn
 
@@ -201,6 +206,12 @@ export default function GamePage() {
 
     socket.on('error', (data) => console.error('Socket error:', data.message))
 
+    // ── Chat: receive a message from the opponent ──
+    // The server forwards it via socket.to(gameId) — never stored in DB
+    socket.on('receive-message', (data) => {
+      setChatMessages(prev => [...prev, { ...data, mine: false }])
+    })
+
     return () => {
       socket.off('connect', emitJoin)
       socket.off('disconnect')
@@ -213,6 +224,7 @@ export default function GamePage() {
       socket.off('opponent-disconnected')
       socket.off('move-error')
       socket.off('error')
+      socket.off('receive-message')
     }
   }, [socket, gameId])
 
@@ -270,6 +282,21 @@ export default function GamePage() {
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
+
+  // ── Send chat message (ephemeral) ──
+  const handleSendMessage = (e) => {
+    e?.preventDefault()
+    if (!chatInput.trim() || !socket) return
+    const msgText = chatInput.trim().slice(0, 200)
+    socket.emit('send-message', { gameId, message: msgText })
+    setChatMessages(prev => [...prev, { from: user?.id || 'me', message: msgText, timestamp: Date.now(), mine: true }])
+    setChatInput('')
+  }
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
 
   const customSquareStyles = {
     ...(lastMove ? {
@@ -543,7 +570,7 @@ export default function GamePage() {
                 WebkitBackdropFilter: 'blur(16px)',
               }}>
                 <div style={{
-                  padding: '12px 16px',
+                  padding: '10px 14px',
                   borderBottom: `1px solid ${T.borderSubtle}`,
                   fontSize: 11, fontWeight: 600, color: T.textMuted,
                   letterSpacing: '0.08em', textTransform: 'uppercase',
@@ -552,7 +579,7 @@ export default function GamePage() {
                 </div>
                 <div style={{ overflowY: 'auto', flex: 1, padding: '6px 8px' }}>
                   {movePairs.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: T.textMuted }}>
+                    <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 12, color: T.textMuted }}>
                       No moves yet
                     </div>
                   ) : (
@@ -575,6 +602,96 @@ export default function GamePage() {
                     </table>
                   )}
                 </div>
+              </div>
+
+              {/* ── Ephemeral Live Chat Box ── */}
+              <div style={{
+                background: T.surfaceMain,
+                border: `1px solid ${T.border}`,
+                borderRadius: 16,
+                height: 170,
+                display: 'flex', flexDirection: 'column',
+                overflow: 'hidden', flexShrink: 0,
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+              }}>
+                <div style={{
+                  padding: '8px 14px',
+                  borderBottom: `1px solid ${T.borderSubtle}`,
+                  fontSize: 11, fontWeight: 600, color: T.textMuted,
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <span>Live Chat</span>
+                  <span style={{ fontSize: 10, color: T.textMuted, textTransform: 'none', fontWeight: 400 }}>Ephemeral</span>
+                </div>
+
+                {/* Message area */}
+                <div style={{
+                  flex: 1, overflowY: 'auto', padding: '8px 12px',
+                  display: 'flex', flexDirection: 'column', gap: 6,
+                }}>
+                  {chatMessages.length === 0 ? (
+                    <div style={{ fontSize: 11, color: T.textMuted, textAlign: 'center', marginTop: 16 }}>
+                      Say hello to your opponent!
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          alignSelf: msg.mine ? 'flex-end' : 'flex-start',
+                          maxWidth: '85%',
+                          background: msg.mine ? 'rgba(214,168,79,0.15)' : T.surfaceSub,
+                          border: `1px solid ${msg.mine ? 'rgba(214,168,79,0.3)' : T.border}`,
+                          borderRadius: msg.mine ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
+                          padding: '5px 9px',
+                          fontSize: 11,
+                          color: msg.mine ? T.accent : T.textPrimary,
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {msg.message}
+                      </div>
+                    ))
+                  )}
+                  <div ref={chatBottomRef} />
+                </div>
+
+                {/* Chat Input form */}
+                <form onSubmit={handleSendMessage} style={{
+                  display: 'flex', gap: 6, padding: '6px 8px',
+                  borderTop: `1px solid ${T.borderSubtle}`,
+                  background: 'rgba(13,10,7,0.4)',
+                }}>
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type a message…"
+                    maxLength={200}
+                    disabled={status !== 'ACTIVE'}
+                    style={{
+                      flex: 1, background: T.surfaceSub, border: `1px solid ${T.border}`,
+                      borderRadius: 8, padding: '5px 10px', color: T.textPrimary,
+                      fontSize: 11, outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim() || status !== 'ACTIVE'}
+                    style={{
+                      background: chatInput.trim() && status === 'ACTIVE' ? T.accent : T.surfaceSub,
+                      color: chatInput.trim() && status === 'ACTIVE' ? '#1A1106' : T.textMuted,
+                      border: `1px solid ${T.border}`, borderRadius: 8,
+                      width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: chatInput.trim() && status === 'ACTIVE' ? 'pointer' : 'default',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <Send size={12} />
+                  </button>
+                </form>
               </div>
 
               {/* Draw offer prompt */}
