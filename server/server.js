@@ -8,7 +8,6 @@ const initSocket = require("./src/socket/index");
 const app = express();
 
 // --- Create HTTP server ---
-// Socket.IO must attach to the raw HTTP server, not the Express app directly
 const httpServer = http.createServer(app);
 
 // --- Initialize Socket.IO ---

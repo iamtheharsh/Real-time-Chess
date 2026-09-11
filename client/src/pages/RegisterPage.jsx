@@ -111,7 +111,7 @@ export default function RegisterPage() {
                   required
                   value={form.username}
                   onChange={handleChange}
-                  placeholder="harshpatel"
+                  placeholder="Enter your username"
                   className="w-full bg-[#151517] border border-[#27272A] focus:border-[#6EE7B7] text-[#F5F5F7] placeholder-[#71717A] rounded-xl h-10 px-3.5 text-sm transition outline-none"
                 />
               </div>
