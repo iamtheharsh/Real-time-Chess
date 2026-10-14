@@ -32,14 +32,17 @@ app.use(
 app.use(express.json()); // Parse JSON request bodies
 
 // --- Routes ---
-// Auth routes
-app.use("/api/auth", require("./src/routes/auth"));
+const authRoutes = require("./src/routes/auth");
+const gameRoutes = require("./src/routes/games");
 
-// Game routes
-app.use("/api/games", require("./src/routes/games"));
+// Auth routes (supports /api/auth, /auth, and accidental /api/api/auth)
+app.use(["/api/auth", "/auth", "/api/api/auth"], authRoutes);
+
+// Game routes (supports /api/games, /games, and /api/api/games)
+app.use(["/api/games", "/games", "/api/api/games"], gameRoutes);
 
 // --- Health check route ---
-app.get("/api/health", (req, res) => {
+app.get(["/api/health", "/health", "/"], (req, res) => {
   res.json({ status: "ok", message: "Real-Time Chess API is running" });
 });
 

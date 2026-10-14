@@ -8,7 +8,10 @@ export function useSocket() {
 
   if (!socketRef.current) {
     const token = localStorage.getItem("chess_token");
-    const serverUrl = import.meta.env.VITE_SERVER_URL || "/"
+    const rawUrl = import.meta.env.VITE_SERVER_URL;
+    const serverUrl = rawUrl
+      ? rawUrl.replace(/\/+$/, "").replace(/\/api$/, "")
+      : "/";
     socketRef.current = io(serverUrl, {
       // "/" connects to same origin — Vite proxy forwards /socket.io → localhost:3001
       auth: { token },

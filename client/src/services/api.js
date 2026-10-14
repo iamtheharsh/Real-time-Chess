@@ -1,11 +1,17 @@
 import axios from "axios";
 
+// Helper to determine clean API baseURL
+const getBaseURL = () => {
+  const rawUrl = import.meta.env.VITE_SERVER_URL;
+  if (!rawUrl) return "/api";
+  const cleanUrl = rawUrl.replace(/\/+$/, "");
+  // If user already included /api at the end, don't duplicate it
+  return cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`;
+};
+
 // Axios instance — all requests go through here
-// The Vite proxy forwards /api → http://localhost:5000
 const api = axios.create({
-  baseURL: import.meta.env.VITE_SERVER_URL
-    ? `${import.meta.env.VITE_SERVER_URL}/api`
-    : "/api",
+  baseURL: getBaseURL(),
   headers: { "Content-Type": "application/json" },
 });
 
