@@ -63,7 +63,7 @@ export default function LoginPage() {
 
           {/* Minimal Tagline */}
           <div className="text-xs text-[#71717A] tracking-wider uppercase font-mono">
-            Authoritative clocks • 10+10 Blitz
+            {/* Authoritative clocks • 10+10 Blitz */}
           </div>
         </div>
 

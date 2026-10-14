@@ -131,7 +131,7 @@ export default function GamePage() {
       lastTickRef.current = now
       if (currentTurn === 'w') setWhiteTime(t => Math.max(0, t - delta))
       else setBlackTime(t => Math.max(0, t - delta))
-    }, 200)
+    }, 200) // every 200 ms updatew 
     return () => clearInterval(clockRef.current)
   }, [status, gameOver, currentTurn])
 
