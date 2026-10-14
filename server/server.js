@@ -17,19 +17,13 @@ const io = initSocket(httpServer);
 connectDB();
 
 
+const { isOriginAllowed } = require("./src/config/cors");
+
 // --- Middleware ---
 app.use(
   cors({
-    // Accept both localhost (dev) and the deployed Vercel URL (prod)
-    // CLIENT_URL can be a comma-separated list e.g. "https://x.vercel.app"
     origin: (origin, callback) => {
-      const allowed = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        process.env.CLIENT_URL,
-      ].filter(Boolean);
-      // Allow requests with no origin (mobile apps, curl, Postman)
-      if (!origin || allowed.includes(origin)) return callback(null, true);
+      if (isOriginAllowed(origin)) return callback(null, true);
       callback(new Error("Not allowed by CORS"));
     },
     credentials: true,

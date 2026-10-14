@@ -2,6 +2,7 @@ const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const { Chess } = require("chess.js");
 const Game = require("../models/Game");
+const { isOriginAllowed } = require("../config/cors");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // In-memory store: keeps one chess.js instance per active game
@@ -23,12 +24,7 @@ const initSocket = (httpServer) => {
   const io = new Server(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        const allowed = [
-          "http://localhost:5173",
-          "http://localhost:3000",
-          process.env.CLIENT_URL,
-        ].filter(Boolean);
-        if (!origin || allowed.includes(origin)) return callback(null, true);
+        if (isOriginAllowed(origin)) return callback(null, true);
         callback(new Error("Not allowed by CORS"));
       },
       credentials: true,
